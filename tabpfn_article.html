@@ -113,7 +113,7 @@ h2 {
 
 h3 {
   font-family: var(--sans);
-  font-size: 1.05rem;
+  font-size: 1.30rem;
   font-weight: 500;
   color: var(--ink);
   margin-top: 2rem;
@@ -360,6 +360,18 @@ footer {
   }
 }
 </style>
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['\\(', '\\)'], ['$', '$']],
+      displayMath: [['\\[', '\\]'], ['$$', '$$']]
+    },
+    svg: {
+      fontCache: 'global'
+    }
+  };
+</script>
+<script async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>  
 </head>
 <body>
 
@@ -591,13 +603,15 @@ footer {
 <h3>The loss: density NLL, not categorical cross-entropy</h3>
 
 <p>
-  Given a true target value <em>y</em>, it is mapped to its bucket index using a binary search (<code>searchsorted</code>). The loss is then:
+  Given a true target value <em>y</em>, it is mapped to its bucket index using a binary search. The loss is then:
 </p>
 </div>
 
 <div class="eq wrap">
-  <span class="label">Bar distribution NLL loss (from bar_distribution.py)</span>
-  NLL = −log p_k + log(Δ)
+  <span class="label">Bar distribution NLL loss</span>
+  \[
+  \mathrm{NLL} = -\log p_k + \log(\Delta)
+  \]
   <span class="note">where p_k is the softmax probability of the target bucket, and Δ is the bucket width. The +log(Δ) term converts categorical cross-entropy into a proper density NLL so that a uniform distribution over [0,1] gives a loss of exactly 0, not log(N).</span>
 </div>
 
@@ -620,7 +634,7 @@ footer {
   <div class="icon">④</div>
   <div class="body">
     <strong>Interactive · Bar distribution &amp; loss</strong>
-    <p>Step through four frames: (1) building equal-probability borders from the prior, (2) mapping a continuous target to its bucket via searchsorted, (3) the NLL loss formula with the density correction term, (4) the training loop — synthetic datasets cycling through, NLL converging. You can also <a href="tabpfn_visualizations.html?tab=3" target="_blank">open it in a new tab</a>.</p>
+    <p>Step through four frames: (1) building equal-probability borders from the prior, (2) mapping a continuous target to its bucket, (3) the NLL loss formula with the density correction term, (4) the training loop — synthetic datasets cycling through, NLL converging. You can also <a href="tabpfn_visualizations.html?tab=3" target="_blank">open it in a new tab</a>.</p>
   </div>
 </div>
 
@@ -652,7 +666,9 @@ footer {
 
 <div class="eq wrap">
   <span class="label">TabPFN training objective (PFN paper §3)</span>
-  min<sub>θ</sub>  𝔼<sub>D ~ p(D)</sub> [ −log q<sub>θ</sub>(y<sub>test</sub> | x<sub>test</sub>, D<sub>train</sub>) ]
+  \[
+  \min_{\theta}\ \mathbb{E}_{D \sim p(D)}\left[-\log q_{\theta}\left(y_{\mathrm{test}} \mid x_{\mathrm{test}}, D_{\mathrm{train}}\right)\right]
+  \]
   <span class="note">Minimised over randomly sampled datasets D from the prior, with one label masked as the prediction target.</span>
 </div>
 
@@ -664,7 +680,9 @@ footer {
 
 <div class="eq wrap">
   <span class="label">PFN paper Insight 1 — equivalence to KL minimisation</span>
-  𝔼<sub>D</sub> [ KL( p(y | x, D) ‖ q<sub>θ</sub>(y | x, D) ) ] → 0
+  \[
+  \mathbb{E}_{D}\left[\mathrm{KL}\left(p(y \mid x, D)\ \|\ q_{\theta}(y \mid x, D)\right)\right] \to 0
+  \]
   <span class="note">At the optimum, the model's output q<sub>θ</sub> equals the true posterior predictive p(y | x, D) for every dataset in the prior.</span>
 </div>
 
