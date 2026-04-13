@@ -329,6 +329,36 @@ footer {
   h1 { font-size: 1.9rem; }
   body { font-size: 17px; }
 }
+  
+.viz-embed {
+  max-width: var(--wide);
+  margin: 1.25rem auto 2.5rem;
+  background: #111;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.viz-embed iframe {
+  display: block;
+  width: 100%;
+  height: 760px;
+  border: 0;
+  background: #0f0f11;
+}
+
+@media (max-width: 900px) {
+  .viz-embed iframe {
+    height: 680px;
+  }
+}
+
+@media (max-width: 600px) {
+  .viz-embed iframe {
+    height: 620px;
+  }
+}
 </style>
 </head>
 <body>
@@ -388,10 +418,17 @@ footer {
   <div class="icon">①</div>
   <div class="body">
     <strong>Interactive · Synthetic data generation</strong>
-    <p>Step through the DAG generation process: see a causal graph sampled, edge weights assigned, noise injected at root nodes, and values propagated forward to produce one row of synthetic training data. Open the <a href="tabpfn_visualizations.html" target="_blank">interactive visualizations</a> and select <em>① DAG Generation</em>.</p>
+    <p>Step through the DAG generation process: see a causal graph sampled, edge weights assigned, noise injected at root nodes, and values propagated forward to produce one row of synthetic training data. You can also <a href="tabpfn_visualizations.html?tab=0" target="_blank">open it in a new tab</a>.</p>
   </div>
 </div>
 
+<div class="viz-embed">
+  <iframe
+    src="tabpfn_visualizations.html?tab=0"
+    title="Interactive visualization: Synthetic data generation"
+    loading="lazy">
+  </iframe>
+</div> 
 <!-- ══════════════════════════════════════════════════ -->
 <h2>Part 2 — The architecture: a transformer that reads datasets, not sentences</h2>
 
@@ -449,10 +486,18 @@ footer {
   <div class="icon">②</div>
   <div class="body">
     <strong>Interactive · Row &amp; column attention</strong>
-    <p>Step through pre-selected examples showing exactly which cells are Queries, which are Keys (amber border), and which become Values (green fill) — for both column attention and row attention. The label column is included. Open the <a href="tabpfn_visualizations.html#sec1" target="_blank">interactive visualizations</a> and select <em>② Row &amp; Column Attention</em>.</p>
+    <p>Step through pre-selected examples showing exactly which cells are Queries, which are Keys (amber border), and which become Values (green fill), for both column attention and row attention. The label column is included. You can also <a href="tabpfn_visualizations.html?tab=1" target="_blank">open it in a new tab</a>.</p>
   </div>
 </div>
 
+<div class="viz-embed">
+  <iframe
+    src="tabpfn_visualizations.html?tab=1"
+    title="Row and Column Attention"
+    loading="lazy">
+  </iframe>
+</div>
+  
 <div class="wrap">
 <h3>Why this is better than a pure MLP</h3>
 
@@ -514,10 +559,17 @@ footer {
   <div class="icon">③</div>
   <div class="body">
     <strong>Interactive · Architecture flow</strong>
-    <p>A clickable diagram tracing the full forward pass: raw tabular data → encoder (with label column appended) → L stacked layers each containing col attn, row attn, and MLP → extraction of the label slot from test rows → regression or classification output. Open the <a href="tabpfn_visualizations.html#sec2" target="_blank">interactive visualizations</a> and select <em>③ Architecture Flow</em>.</p>
+    <p>A clickable diagram tracing the full forward pass: raw tabular data → encoder (with label column appended) → L stacked layers each containing col attn, row attn, and MLP → extraction of the label slot from test rows → regression or classification output. You can also <a href="tabpfn_visualizations.html?tab=2" target="_blank">open it in a new tab</a>.</p>
   </div>
 </div>
 
+<div class="viz-embed">
+  <iframe
+    src="tabpfn_visualizations.html?tab=2"
+    title="Interactive visualization: Architecture flow"
+    loading="lazy">
+  </iframe>
+</div>
 <!-- ══════════════════════════════════════════════════ -->
 <h2>Part 3 — The loss function: regression as classification</h2>
 
@@ -568,10 +620,17 @@ footer {
   <div class="icon">④</div>
   <div class="body">
     <strong>Interactive · Bar distribution &amp; loss</strong>
-    <p>Step through four frames: (1) building equal-probability borders from the prior, (2) mapping a continuous target to its bucket via searchsorted, (3) the NLL loss formula with the density correction term, (4) the training loop — synthetic datasets cycling through, NLL converging. Open the <a href="tabpfn_visualizations.html#sec3" target="_blank">interactive visualizations</a> and select <em>④ Bar Distribution Loss</em>.</p>
+    <p>Step through four frames: (1) building equal-probability borders from the prior, (2) mapping a continuous target to its bucket via searchsorted, (3) the NLL loss formula with the density correction term, (4) the training loop — synthetic datasets cycling through, NLL converging. You can also <a href="tabpfn_visualizations.html?tab=3" target="_blank">open it in a new tab</a>.</p>
   </div>
 </div>
 
+<div class="viz-embed">
+  <iframe
+    src="tabpfn_visualizations.html?tab=3"
+    title="Interactive visualization: Bar distribution loss"
+    loading="lazy">
+  </iframe>
+</div>
 <!-- ══════════════════════════════════════════════════ -->
 <h2>Part 4 — What the model actually learns: amortised Bayesian inference</h2>
 
@@ -651,10 +710,18 @@ footer {
   <div class="icon">⑤</div>
   <div class="body">
     <strong>Interactive · What the model learns</strong>
-    <p>An animated illustration of the training-to-inference arc: five diverse synthetic datasets flow in, each updating the weights via NLL minimisation. Then a new unseen dataset arrives — the same fixed weights read its structure through attention and output the appropriate posterior. <em>Same weights. Different dataset. Correct posterior.</em> Open the <a href="tabpfn_visualizations.html#sec4" target="_blank">interactive visualizations</a> and select <em>⑤ What the Model Learns</em>.</p>
+    <p>An animated illustration of the training-to-inference arc: five diverse synthetic datasets flow in, each updating the weights via NLL minimisation. Then a new unseen dataset arrives — the same fixed weights read its structure through attention and output the appropriate posterior. <em>Same weights. Different dataset. Correct posterior.</em> You can also <a href="tabpfn_visualizations.html?tab=4" target="_blank">open it in a new tab</a>.</p>
   </div>
 </div>
 
+<div class="viz-embed">
+  <iframe
+    src="tabpfn_visualizations.html?tab=4"
+    title="Interactive visualization: What the model learns"
+    loading="lazy">
+  </iframe>
+</div>
+  
 <!-- ══════════════════════════════════════════════════ -->
 <h2>Part 5 — Where this breaks: the limits of the pretraining prior</h2>
 
