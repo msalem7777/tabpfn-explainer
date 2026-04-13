@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TabPFN — Five Interactive Visualizations</title>
+<title>Tabular Foundation Models — Five Interactive Visualizations</title>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -380,7 +380,7 @@ table.data-table tr.row-highlight td {
 <!-- SECTION 3: ARCHITECTURE FLOW                               -->
 <!-- ═══════════════════════════════════════════════════════════ -->
 <section class="section" id="sec2">
-  <h2 class="section-title">Architecture: PerFeatureTransformer</h2>
+  <h2 class="section-title">Architecture</h2>
   <p class="section-sub">Starting from a raw tabular dataset, the model encodes each (row, feature-group) cell independently, appending the label y as a final column, then passes the tensor through L identical layers. Each layer runs column attention, then row attention, then an MLP (each followed by LayerNorm). After all layers, only the label-slot embeddings of the test rows are extracted and decoded to produce predictions. Click any block to read what it does.</p>
 
   <div class="vis-box" style="padding:1rem;">
@@ -448,6 +448,15 @@ function showSection(i) {
   if (i===3) { initBarDist(); }
   if (i===4) { initKernel(); }
 }
+
+// On load: read ?tab=N from the URL and switch to that section
+(function() {
+  const params = new URLSearchParams(window.location.search);
+  const tab = parseInt(params.get('tab') || '0', 10);
+  if (tab >= 0 && tab <= 4) {
+    window.addEventListener('load', () => showSection(tab));
+  }
+})();
 
 
 /* ═══════════════════════════════════════════════ */
