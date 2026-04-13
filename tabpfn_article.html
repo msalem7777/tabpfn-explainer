@@ -486,7 +486,7 @@ footer {
 </p>
 
 <p>
-  <strong style="font-family: var(--sans);">Row attention</strong> runs at a fixed feature-group position, across rows. The code transposes the tensor before passing it to the attention module (making rows the sequence dimension), so each token attends to the same feature-group position in other rows. For query/test rows, a critical constraint is enforced: the Keys and Values come <em>only</em> from training rows (<code>x[:, :single_eval_pos]</code>). Test rows cannot attend to each other or to their own labels (i.e. there is no leakage).
+  <strong style="font-family: var(--sans);">Row attention</strong> runs at a fixed feature-group position, across rows. The code transposes the tensor before passing it to the attention module (making rows the sequence dimension), so each token attends to the same feature-group position in other rows. For query/test rows, a critical constraint is enforced: the Keys and Values come <em>only</em> from training rows. Test rows cannot attend to each other or to their own labels (i.e. there is no leakage).
 </p>
 
 <p>
