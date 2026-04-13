@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>How Do Tabular Foundation Models Work? A TabPFN Walkthrough</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300;1,9..144,400&family=DM+Sans:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --ink:       #1c1a18;
+  --ink-mid:   #4a4540;
+  --ink-soft:  #7a7268;
+  --bg:        #f7f4ef;
+  --bg-warm:   #ede9e1;
+  --bg-card:   #e8e3d9;
+  --rule:      #d4cfc6;
+  --accent:    #5c3d8f;
+  --accent2:   #c0622b;
+  --teal:      #1d7a72;
+  --serif:     'Fraunces', Georgia, serif;
+  --sans:      'DM Sans', system-ui, sans-serif;
+  --mono:      'IBM Plex Mono', monospace;
+  --max:       700px;
+  --wide:      860px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 19px;
+  line-height: 1.78;
+}
+
+/* ── LAYOUT ─────────────────────────────────── */
+.wrap       { max-width: var(--max); margin: 0 auto; padding: 0 1.5rem; }
+.wrap-wide  { max-width: var(--wide); margin: 0 auto; padding: 0 1.5rem; }
+
+/* ── HEADER ─────────────────────────────────── */
+header {
+  padding: 5rem 1.5rem 4rem;
+  max-width: var(--max);
+  margin: 0 auto;
+  border-bottom: 1px solid var(--rule);
+}
+
+.kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 1.4rem;
+}
+
+h1 {
+  font-family: var(--serif);
+  font-size: clamp(2rem, 5vw, 3.2rem);
+  font-weight: 300;
+  font-style: italic;
+  line-height: 1.15;
+  color: var(--ink);
+  margin-bottom: 1.4rem;
+  max-width: 640px;
+}
+
+.subtitle {
+  font-family: var(--sans);
+  font-size: 1.05rem;
+  font-weight: 300;
+  color: var(--ink-mid);
+  line-height: 1.65;
+  max-width: 580px;
+  margin-bottom: 2rem;
+}
+
+.byline {
+  display: flex;
+  gap: 0.8rem;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+  letter-spacing: 0.05em;
+}
+.byline span + span::before { content: '·'; margin-right: 0.8rem; }
+
+/* ── TYPOGRAPHY ─────────────────────────────── */
+article { padding: 3.5rem 0 5rem; }
+
+article > * + * { margin-top: 1.5rem; }
+
+p { max-width: var(--max); margin-left: auto; margin-right: auto; }
+
+h2 {
+  font-family: var(--serif);
+  font-size: 1.65rem;
+  font-weight: 300;
+  color: var(--ink);
+  margin-top: 3.5rem;
+  margin-bottom: 0.2rem;
+  max-width: var(--max);
+  margin-left: auto;
+  margin-right: auto;
+  padding-top: 2.5rem;
+  border-top: 1px solid var(--rule);
+}
+
+h3 {
+  font-family: var(--sans);
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--ink);
+  margin-top: 2rem;
+  margin-bottom: -0.5rem;
+  max-width: var(--max);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+blockquote {
+  max-width: var(--max);
+  margin: 2rem auto;
+  padding-left: 1.5rem;
+  border-left: 3px solid var(--accent);
+  font-style: italic;
+  color: var(--ink-mid);
+  font-size: 1.08rem;
+  line-height: 1.7;
+}
+
+code {
+  font-family: var(--mono);
+  font-size: 0.82em;
+  background: var(--bg-card);
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  color: var(--accent);
+}
+
+/* ── EQUATIONS ───────────────────────────────── */
+.eq {
+  max-width: var(--max);
+  margin: 1.8rem auto;
+  background: var(--bg-warm);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 1.1rem 1.5rem;
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  color: var(--ink);
+  line-height: 1.9;
+}
+.eq .label {
+  display: block;
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 0.5rem;
+}
+.eq .note {
+  display: block;
+  font-family: var(--sans);
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  margin-top: 0.5rem;
+  font-style: italic;
+}
+
+/* ── CALLOUT (interactive viz pointer) ───────── */
+.vis-callout {
+  max-width: var(--wide);
+  margin: 2.5rem auto;
+  background: var(--ink);
+  color: #e8e4dc;
+  border-radius: 10px;
+  padding: 1.4rem 1.8rem;
+  display: flex;
+  gap: 1.4rem;
+  align-items: flex-start;
+}
+.vis-callout .icon {
+  font-size: 1.6rem;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.vis-callout .body { flex: 1; }
+.vis-callout strong {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #9a88e8;
+  display: block;
+  margin-bottom: 0.35rem;
+}
+.vis-callout p {
+  font-family: var(--sans);
+  font-size: 0.92rem;
+  color: #c8c0b8;
+  line-height: 1.6;
+  margin: 0;
+  max-width: none;
+}
+.vis-callout a {
+  color: #b0a0f0;
+  text-decoration: none;
+  font-weight: 500;
+  border-bottom: 1px solid rgba(160,140,240,0.35);
+}
+.vis-callout a:hover { border-bottom-color: #b0a0f0; }
+
+/* ── NOTE BOX ────────────────────────────────── */
+.note-box {
+  max-width: var(--max);
+  margin: 2rem auto;
+  background: var(--bg-card);
+  border-radius: 8px;
+  padding: 1.2rem 1.5rem;
+  font-family: var(--sans);
+  font-size: 0.9rem;
+  color: var(--ink-mid);
+  line-height: 1.65;
+  border-left: 4px solid var(--teal);
+}
+.note-box .note-title {
+  font-weight: 500;
+  color: var(--teal);
+  display: block;
+  margin-bottom: 0.4rem;
+  font-size: 0.82rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  font-family: var(--mono);
+}
+
+/* ── COMPARISON TABLE ────────────────────────── */
+.cmp-wrap { max-width: var(--wide); margin: 2rem auto; overflow-x: auto; }
+table.cmp {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--sans);
+  font-size: 0.88rem;
+}
+table.cmp th {
+  background: var(--ink);
+  color: #e8e4dc;
+  font-weight: 500;
+  padding: 0.7rem 1.1rem;
+  text-align: left;
+  letter-spacing: 0.04em;
+}
+table.cmp td {
+  padding: 0.65rem 1.1rem;
+  border-bottom: 1px solid var(--rule);
+  vertical-align: top;
+  color: var(--ink-mid);
+  line-height: 1.5;
+}
+table.cmp tr:nth-child(even) td { background: var(--bg-warm); }
+
+/* ── PULL QUOTE ──────────────────────────────── */
+.pull {
+  max-width: 580px;
+  margin: 3rem auto;
+  text-align: center;
+  font-size: 1.3rem;
+  font-style: italic;
+  font-weight: 300;
+  color: var(--ink-mid);
+  line-height: 1.5;
+  padding: 0 2rem;
+}
+
+/* ── INLINE SUPERSCRIPT REFS ─────────────────── */
+sup a {
+  font-family: var(--mono);
+  font-size: 0.65em;
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+sup a:hover { text-decoration: underline; }
+
+/* ── REFERENCES ──────────────────────────────── */
+.refs {
+  max-width: var(--max);
+  margin: 4rem auto 0;
+  padding-top: 2.5rem;
+  border-top: 2px solid var(--ink);
+}
+.refs h2 { border-top: none; padding-top: 0; margin-top: 0; font-size: 1.1rem; }
+.refs ol {
+  padding-left: 1.4rem;
+  font-family: var(--sans);
+  font-size: 0.85rem;
+  color: var(--ink-mid);
+  line-height: 1.7;
+  margin-top: 1rem;
+}
+.refs li { margin-bottom: 0.85rem; }
+.refs a { color: var(--accent); text-decoration: none; }
+.refs a:hover { text-decoration: underline; }
+
+/* ── FOOTER ──────────────────────────────────── */
+footer {
+  max-width: var(--max);
+  margin: 3rem auto 0;
+  padding: 2rem 1.5rem;
+  border-top: 1px solid var(--rule);
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+@media (max-width: 600px) {
+  .vis-callout { flex-direction: column; gap: 0.8rem; }
+  h1 { font-size: 1.9rem; }
+  body { font-size: 17px; }
+}
+</style>
+</head>
+<body>
+
+<header>
+  <p class="kicker">Deep Dive · Tabular Machine Learning</p>
+  <h1>TabPFN: A Transformer That Performs Bayesian Inference on Tabular Data</h1>
+  <p class="subtitle">From synthetic causal graphs to amortised posteriors — a ground-up explanation of how TabPFN works, what it learns, and why it represents a genuinely new way of thinking about prediction on structured data.</p>
+  <div class="byline">
+    <span>~18 min read</span>
+    <span>Intermediate · equations kept minimal</span>
+  </div>
+</header>
+
+<article>
+
+<div class="wrap">
+<p>
+  For most of its history, tabular machine learning has operated by a single assumption: you train a model on your dataset. Every model starts from scratch. Every dataset is an island. Gradient-boosted trees  (e.g. XGBoost, LightGBM, CatBoost) sit at the top of benchmark leaderboards for a reason: they are remarkably good at squeezing signal from structured data with no prior knowledge at all.
+</p>
+
+<p>
+  However, this agnostic approach leaves a lot on the table; when a human data scientist looks at a new dataset, they don't start from scratch. They bring years of intuition to bear on the data, like which features tend to interact, what kinds of noise patterns are plausible, and what processes are likely at work generating the data. They bring a <em>prior</em>. Classical out-of-the-box ML methods have no mechanism for this.
+</p>
+
+<p>
+  Tabular foundation models change the framing entirely.<sup><a href="#ref3">[3]</a></sup> Rather than training a model on your dataset, you give the entire dataset to a pretrained transformer <em>as input</em>, and it produces a prediction in a single forward pass; no gradient updates, no retraining. The model has already absorbed, during pretraining, a broad prior over what tabular data can look like. At inference time, it reads your data and answers the question: <em>given everything I've learned about how the world generates datasets, what is the most likely outcome for this query point?</em>
+</p>
+
+<p>
+  This article explains, from the ground up, how this works. We cover the training data generation, the architecture, the loss function, and, most importantly, what the model actually learns. Each section is accompanied by an interactive illustration you can explore.
+</p>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<h2>Part 1 — Where the training data comes from: synthetic causal graphs</h2>
+
+<div class="wrap">
+<p>
+  The most unusual thing about tabular foundation models is not their architecture, it is what they train on. Despite the fact that most real-world business data is fundamentally tabular, there is no large, readily available corpus of real tabular datasets (the way language models train on text). Instead, to train a tabular foundation model, we generate our own training data procedurally, using random causal graphs.
+</p>
+
+<p>
+  The process works like this. A random Directed Acyclic Graph (DAG) is sampled. Each node in the graph represents either an input feature or a target variable. Edges represent causal influences: parent nodes affect child nodes via learned weight matrices and nonlinear activation functions (ReLU, tanh, sigmoid). Random noise is injected at the root nodes and is propagated forward through the graph. The final values at each node form a single row of a synthetic dataset.
+</p>
+
+<p>
+  Repeat this millions of times, with different graph structures, different weights, different noise levels, and you get an enormous diversity of synthetic datasets, each with different linearity, different feature interactions, different noise distributions. This is the pretraining corpus: hundreds of millions (approximately 130 million in TabPFN's case) synthetic datasets, each generated from a different causal model.
+</p>
+
+<p>
+  The reasoning behind this design is elegant. If your goal is to learn a prior over "what kinds of relationships can arise in real-world tabular data," one approach is to curate a massive collection of real datasets. But real datasets are biased, limited, and hard to label correctly for meta-learning. The alternative, generating from a broad prior over causal structures, can produce infinite diversity while remaining mathematically principled. You are training the model to be good at inference over the class of problems that can be described by a causal DAG, which covers most practical tabular prediction tasks. It also allows you to pretrain your model towards the kind of tasks you expect to encounter.
+</p>
+</div>
+
+<div class="vis-callout">
+  <div class="icon">①</div>
+  <div class="body">
+    <strong>Interactive · Synthetic data generation</strong>
+    <p>Step through the DAG generation process: see a causal graph sampled, edge weights assigned, noise injected at root nodes, and values propagated forward to produce one row of synthetic training data. Open the <a href="tabpfn_visualizations.html" target="_blank">interactive visualizations</a> and select <em>① DAG Generation</em>.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<h2>Part 2 — The architecture: a transformer that reads datasets, not sentences</h2>
+
+<div class="wrap">
+<p>
+  The model is a transformer, but one redesigned around the structure of tabular data rather than sequences of tokens. Understanding how it differs from a standard transformer is essential for understanding why it works.
+</p>
+
+<h3>The token is a cell, not a word</h3>
+
+<p>
+  In a language model, a token is a word or subword. In tabular foundation models, a token is one <em>(row, feature-group)</em> cell. The input is a table with <em>n</em> rows and <em>f</em> features. Features are grouped into blocks, each block is linearly projected into a <em>d</em>-dimensional embedding, and the label <em>y</em> is encoded separately and appended as a final column. The full tensor entering the transformer has shape:
+</p>
+</div>
+
+<div class="eq wrap">
+  <span class="label">Internal tensor shape after encoding</span>
+  (batch, seq_len, num_feature_groups + 1, d_model)
+  <span class="note">The +1 is the label column. For training rows it holds the true label. For query rows it is filled with NaNs, and its value after all L transformer layers is what gets decoded into a prediction.</span>
+</div>
+
+<div class="wrap">
+<p>
+  This is the first architectural peculiarity worth noting: the label is not treated as a separate output target sitting outside the model; it is <em>inside</em> the same tensor as the features, occupying the last feature-group slot. This becomes important when we describe how attention actually flows.
+</p>
+
+<h3>Two kinds of attention and why both matter</h3>
+
+<p>
+  Each of the <em>L</em> identical transformer layers applies attention twice in sequence, over two completely different dimensions of the tensor. This is the heart of the architecture.
+</p>
+
+<p>
+  <strong style="font-family: var(--sans);">Column attention</strong> runs within a single row, across the feature-group dimension. For each row independently, every feature-group token, including the label slot, attends to every other feature-group token in the same row. This is what the code literally does: it applies multi-head attention with the feature-group dimension as the sequence dimension.
+</p>
+
+<p>
+  The significance of this for training rows: the label is visible. When column attention runs on a training row, the feature tokens can directly read the label, and the label token can read the features. The model learns which feature patterns co-occur with which labels, at the level of individual cells within a single example. This is where feature interaction happens: income and debt and age can jointly attend to the label, learning a rich representation of how those features relate to outcomes.
+</p>
+
+<p>
+  <strong style="font-family: var(--sans);">Row attention</strong> runs at a fixed feature-group position, across rows. The code transposes the tensor before passing it to the attention module (making rows the sequence dimension), so each token attends to the same feature-group position in other rows. For query/test rows, a critical constraint is enforced: the Keys and Values come <em>only</em> from training rows (<code>x[:, :single_eval_pos]</code>). Test rows cannot attend to each other or to their own labels (i.e. there is no leakage).
+</p>
+
+<p>
+  The most consequential row-attention pass is the one over the <em>label slot</em>. The query row's masked label token attends to the label tokens of every training row. Since those training-row label tokens have already been enriched by column attention with feature information, this single attention operation transfers a weighted combination of label values, calibrated by feature similarity, into the query's label slot. This is the in-context learning mechanism.
+</p>
+
+<p>
+  After both attention passes, an MLP is applied per-token (each (row, feature-group) cell independently), followed by LayerNorm with a residual connection. This is the standard transformer sublayer structure. Then the whole sequence — col attn → row attn → MLP+LN — repeats for each of the <em>L</em> identical layers.
+</p>
+</div>
+
+<div class="vis-callout">
+  <div class="icon">②</div>
+  <div class="body">
+    <strong>Interactive · Row &amp; column attention</strong>
+    <p>Step through pre-selected examples showing exactly which cells are Queries, which are Keys (amber border), and which become Values (green fill) — for both column attention and row attention. The label column is included. Open the <a href="tabpfn_visualizations.html#sec1" target="_blank">interactive visualizations</a> and select <em>② Row &amp; Column Attention</em>.</p>
+  </div>
+</div>
+
+<div class="wrap">
+<h3>Why this is better than a pure MLP</h3>
+
+<p>
+  It is worth pausing to ask: why can't a sufficiently deep MLP solve this problem? The answer cuts to the core of what makes in-context learning possible.
+</p>
+
+<p>
+  An MLP trained on a tabular dataset learns a fixed mapping from input features to predictions. The weights encode the learned function, and that function applies identically to every new input. The MLP has no mechanism to condition its predictions on other data points. Each prediction is made in isolation. This is fine when you have a large, representative training set; the MLP can approximate the true function well. But it cannot do "local reasoning": it cannot notice that a particular test point is nearly identical to three specific training examples, and up-weight those examples accordingly.
+</p>
+
+<p>
+  Attention changes this fundamentally. By attending over the training set, the model's computation is <em>conditioned</em> on the entire observed dataset. The effective function applied to a query point is not fixed — it is a function of the context.
+</p>
+</div>
+
+<div class="cmp-wrap">
+<table class="cmp">
+  <tr>
+    <th>Capability</th>
+    <th>Standard MLP</th>
+    <th>TabPFN (attention-based)</th>
+  </tr>
+  <tr>
+    <td>Feature interactions</td>
+    <td>Learned implicitly; fixed after training</td>
+    <td>Dynamic; recomputed per query at inference</td>
+  </tr>
+  <tr>
+    <td>Cross-sample reasoning</td>
+    <td>None — each prediction isolated</td>
+    <td>Native — attends over full training set in context</td>
+  </tr>
+  <tr>
+    <td>Uncertainty estimation</td>
+    <td>Requires dropout, ensembles, or special heads</td>
+    <td>Output is a full distribution; uncertainty is explicit</td>
+  </tr>
+  <tr>
+    <td>New dataset</td>
+    <td>Must retrain from scratch</td>
+    <td>Dataset is provided as context; forward pass only</td>
+  </tr>
+  <tr>
+    <td>Small data</td>
+    <td>Prone to overfitting; needs regularisation</td>
+    <td>Leverages pretraining prior; performs well with ~10 examples</td>
+  </tr>
+</table>
+</div>
+
+<div class="wrap">
+<p>
+  There is also a compositionality argument. Stacked attention layers compute higher-order feature dependencies without explicit enumeration. After one layer, each token's representation is a nonlinear blend of all its neighbours. In layer 2, attention over those blended representations is effectively computing interactions of interactions. By layer <em>L</em>, every token reflects a deep, nonlinear function of all pairwise relationships in the data, iterated <em>L</em> times. This gives the model access to the equivalent of arbitrary interaction terms without the combinatorial explosion of specifying them explicitly.
+</p>
+</div>
+
+<div class="vis-callout">
+  <div class="icon">③</div>
+  <div class="body">
+    <strong>Interactive · Architecture flow</strong>
+    <p>A clickable diagram tracing the full forward pass: raw tabular data → encoder (with label column appended) → L stacked layers each containing col attn, row attn, and MLP → extraction of the label slot from test rows → regression or classification output. Open the <a href="tabpfn_visualizations.html#sec2" target="_blank">interactive visualizations</a> and select <em>③ Architecture Flow</em>.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<h2>Part 3 — The loss function: regression as classification</h2>
+
+<div class="wrap">
+<p>
+  A surprising design choice for tabular foundation models arises in how it regression is handled. Instead of predicting a single number, the model outputs a <em>full probability distribution</em> over possible target values. It does this by turning regression into a classification problem. The mechanism is cleaner than it might sound.
+</p>
+
+<h3>Building the buckets</h3>
+
+<p>
+  The target range is divided into <em>N</em> buckets. The borders between buckets are not evenly spaced, rather they are chosen so that each bucket has <em>equal probability under the prior</em> (i.e., equal to 1/N). In practice this means computing quantiles of a large prior-data sample. Equal-probability buckets mean the softmax over buckets starts with a uniform prior, which is well-calibrated: before seeing any data, all outcomes are equally likely.
+</p>
+
+<p>
+  The model outputs a logit vector of length <em>N</em>. A softmax turns this into a probability histogram - a bar chart where each bar represents the probability that the true target falls in that bucket. This is the "bar distribution" or Riemann distribution.
+</p>
+
+<h3>The loss: density NLL, not categorical cross-entropy</h3>
+
+<p>
+  Given a true target value <em>y</em>, it is mapped to its bucket index using a binary search (<code>searchsorted</code>). The loss is then:
+</p>
+</div>
+
+<div class="eq wrap">
+  <span class="label">Bar distribution NLL loss (from bar_distribution.py)</span>
+  NLL = −log p_k + log(Δ)
+  <span class="note">where p_k is the softmax probability of the target bucket, and Δ is the bucket width. The +log(Δ) term converts categorical cross-entropy into a proper density NLL so that a uniform distribution over [0,1] gives a loss of exactly 0, not log(N).</span>
+</div>
+
+<div class="wrap">
+<p>
+  This scaling matters. Without it, a model that spreads probability evenly across many narrow buckets would be penalised relative to one using fewer wide buckets, an artefact of discretisation rather than a reflection of predictive quality. The density NLL is invariant to the number of buckets chosen, making it a proper scoring rule.
+</p>
+
+<p>
+  For regression, the final point prediction is typically the mean or median of this distribution. But the distribution itself is the output. The model gives you calibrated uncertainty for free, as a natural consequence of the architecture, not as an add-on.
+</p>
+
+
+<p>
+  For <em>classification</em>, the output is simpler: a standard softmax over classes. But even here, the same column and row attention machinery applies. The label column in the transformer holds the class index, and the same label-slot extraction mechanism produces the logits.
+</p>
+</div>
+
+<div class="vis-callout">
+  <div class="icon">④</div>
+  <div class="body">
+    <strong>Interactive · Bar distribution &amp; loss</strong>
+    <p>Step through four frames: (1) building equal-probability borders from the prior, (2) mapping a continuous target to its bucket via searchsorted, (3) the NLL loss formula with the density correction term, (4) the training loop — synthetic datasets cycling through, NLL converging. Open the <a href="tabpfn_visualizations.html#sec3" target="_blank">interactive visualizations</a> and select <em>④ Bar Distribution Loss</em>.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<h2>Part 4 — What the model actually learns: amortised Bayesian inference</h2>
+
+<div class="wrap">
+<p>
+  This is the most important section...
+</p>
+
+<p>
+  The model's weights do not store data. They do not memorise which synthetic datasets they have seen, or look them up at inference time. What the weights store is an <em>algorithm</em>: a compressed function that maps "what a dataset looks like" to "what the posterior predictive distribution should be."
+</p>
+
+<h3>The formal objective</h3>
+
+<p>
+  During pretraining, the model minimises the expected NLL of masked labels across all datasets in the prior:
+</p>
+</div>
+
+<div class="eq wrap">
+  <span class="label">TabPFN training objective (PFN paper §3)</span>
+  min<sub>θ</sub>  𝔼<sub>D ~ p(D)</sub> [ −log q<sub>θ</sub>(y<sub>test</sub> | x<sub>test</sub>, D<sub>train</sub>) ]
+  <span class="note">Minimised over randomly sampled datasets D from the prior, with one label masked as the prediction target.</span>
+</div>
+
+<div class="wrap">
+<p>
+  By Insight 1 of the PFN paper,<sup><a href="#ref2">[2]</a></sup> minimising this objective is equivalent to minimising the KL divergence between the model's output and the true Bayesian posterior predictive distribution, averaged over all datasets in the prior:
+</p>
+</div>
+
+<div class="eq wrap">
+  <span class="label">PFN paper Insight 1 — equivalence to KL minimisation</span>
+  𝔼<sub>D</sub> [ KL( p(y | x, D) ‖ q<sub>θ</sub>(y | x, D) ) ] → 0
+  <span class="note">At the optimum, the model's output q<sub>θ</sub> equals the true posterior predictive p(y | x, D) for every dataset in the prior.</span>
+</div>
+
+<div class="wrap">
+<p>
+  This is a remarkable result. It says that if you train a neural network to predict masked labels across a sufficiently diverse distribution of synthetic datasets, the network will converge to a function that <em>is</em> Bayesian inference for that prior, not an approximation of it, but the exact posterior predictive. The weights have learned to compress the algorithm for computing posteriors into a single forward pass.
+</p>
+
+<h3>What the weights encode</h3>
+
+<p>
+  A useful way to think about this: the weights have seen 130 million datasets with radically different statistical structures: linear and nonlinear, high-noise and low-noise, sparse and dense, clustered and diffuse. For each one, they have learned what the correct predictive distribution looks like. But they cannot possibly store all 130 million posteriors explicitly. What they store instead is a <em>generative model of posteriors</em>: a function that, given the fingerprint of a new dataset, can construct the appropriate posterior from scratch.
+</p>
+
+<p>
+  At inference time, the attention mechanism is what performs the fingerprint-reading. When the query row's label slot attends to training rows via row attention, it is asking: which training examples are most relevant to this query, and what do their labels say? When column attention runs on a training row, it is asking: given these features and this label, what pattern do they represent? By the time the information has propagated through <em>L</em> layers of alternating row and column attention, the label slot of the query row holds a rich encoding of the question: "given that the training set looks like this, what should the label be?"
+</p>
+
+<p>
+  The decoder then reads this encoding and produces a distribution over possible answers. No memory lookup. No similarity search over stored datasets. Just a forward pass which happens to implement Bayesian inference.
+</p>
+</div>
+
+<div class="pull">
+  "The model doesn't store data. It stores the algorithm for reasoning about data."
+</div>
+
+<div class="wrap">
+<h3>The connection to kernel methods</h3>
+
+<p>
+  There is a useful analogy to Gaussian processes. In GP regression, you specify a kernel function that measures similarity between data points, and the posterior is a weighted combination of training labels where the weights are determined by similarity to the query. TabPFN does something structurally similar; the row-attention weights are essentially a learned, data-dependent kernel. High attention weight means "this training example is informative about this query." Low weight means the opposite.
+</p>
+
+<p>
+  The difference is that in a GP the kernel is fixed and hand-specified (RBF, Matérn, etc.). In TabPFN, the notion of "similarity" is itself learned from the pretraining distribution. The model has seen datasets where features 2 and 7 matter more than features 1 and 3, and others where the opposite is true. It has learned to <em>read the current dataset</em> and infer which features should drive similarity, adjusting the effective kernel on the fly, conditioned on what it observes.
+</p>
+
+
+</div>
+
+<div class="vis-callout">
+  <div class="icon">⑤</div>
+  <div class="body">
+    <strong>Interactive · What the model learns</strong>
+    <p>An animated illustration of the training-to-inference arc: five diverse synthetic datasets flow in, each updating the weights via NLL minimisation. Then a new unseen dataset arrives — the same fixed weights read its structure through attention and output the appropriate posterior. <em>Same weights. Different dataset. Correct posterior.</em> Open the <a href="tabpfn_visualizations.html#sec4" target="_blank">interactive visualizations</a> and select <em>⑤ What the Model Learns</em>.</p>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<h2>Part 5 — Where this breaks: the limits of the pretraining prior</h2>
+
+<div class="wrap">
+<p>
+  The power of this framework comes with a real and principled limitation. The model's predictions are only as good as the match between your data and the pretraining prior.
+</p>
+
+<p>
+  If your dataset comes from a data-generating process that is genuinely out-of-distribution relative to the synthetic DAGs the model trained on, the model's inferred posterior will be poorly calibrated. It will map your data to the <em>closest</em> pretraining experience it can find, which may be wrong in ways that are hard to diagnose.
+</p>
+
+<blockquote>
+  The model's attention weights are powerful precisely because they reflect a learned notion of similarity but that notion was defined by the pretraining distribution. Feed it something the pretraining has never seen, and the similarity measure becomes unreliable.
+</blockquote>
+
+
+</div>
+
+<!-- ══════════════════════════════════════════════════ -->
+<h2>Closing: a different way of thinking about tabular prediction</h2>
+
+<div class="wrap">
+<p>
+  The standard mental model for tabular ML is: collect data, train model, deploy. Tabular foundation models replace this with: collect data, pass to pretrained model, done. The training happened a long time ago, on synthetic data, and what it produced was not a classifier for any specific task; it was an algorithm for Bayesian reasoning about tabular data in general.
+</p>
+
+<p>
+  This is a meaningful conceptual shift. It means that the quality of your prediction is no longer primarily determined by how much data you have or how carefully you tuned your gradient-boosted tree. It is determined by how well the pretraining prior matches the distribution your data comes from. For most practical tabular prediction tasks, that match is surprisingly good. For novel domains, it requires thought.
+</p>
+
+<p>
+  The attention mechanism is the piece that makes this possible. Without row attention, the model could not condition predictions on the training set. Without column attention, it could not learn feature interactions within examples. Without the label column sitting inside the same token tensor as the features, the label-slot extraction trick would not work. The architecture is not a standard transformer applied to a table, it is a transformer redesigned around the specific computational requirements of in-context Bayesian inference.
+</p>
+
+<p>
+  Understanding this at a mechanistic level, knowing that row attention is a learned kernel, that column attention enables dynamic feature interactions, that the loss function is a proper density scoring rule, gives you a principled basis for knowing when to trust the model and when to be skeptical. It also, hopefully, makes the system feel less like a black box and more like a well-reasoned engineering choice.
+</p>
+</div>
+
+</article>
+
+<section class="refs wrap">
+  <h2>References</h2>
+  <ol>
+    <li id="ref1">
+      Vaswani, A., Shazeer, N., Parmar, N., Uszkoreit, J., Jones, L., Gomez, A. N., Kaiser, Ł., &amp; Polosukhin, I. (2017). <em>Attention is all you need.</em> NeurIPS 2017. <a href="https://arxiv.org/abs/1706.03762" target="_blank">arXiv:1706.03762</a>
+    </li>
+    <li id="ref2">
+      Müller, S., Hollmann, N., Pineda Arango, S., Grabocka, J., &amp; Hutter, F. (2022). <em>Transformers can do Bayesian inference.</em> ICLR 2022. <a href="https://arxiv.org/abs/2112.10510" target="_blank">arXiv:2112.10510</a>
+    </li>
+    <li id="ref3">
+      Hollmann, N., Müller, S., Eggensperger, K., &amp; Hutter, F. (2023). <em>TabPFN: A transformer that solves small tabular classification problems in a second.</em> ICLR 2023. <a href="https://arxiv.org/abs/2207.01848" target="_blank">arXiv:2207.01848</a>
+    </li>
+    <li id="ref4">
+      Hollmann, N., Müller, S., Purucker, L., Krishnakumar, A., Körfer, M., Hoo, S. B., Schirrmeister, R. T., &amp; Hutter, F. (2025). <em>Accurate predictions on small data with a tabular foundation model.</em> Nature, 637(8045), 319–326. <a href="https://doi.org/10.1038/s41586-024-08328-6" target="_blank">doi:10.1038/s41586-024-08328-6</a>
+    </li>
+  </ol>
+</section>
+
+<footer class="wrap">
+  <p>Article accompanies five interactive visualizations available at <a href="tabpfn_visualizations.html">tabpfn_visualizations.html</a>. Each section above points to the relevant illustration. All architecture claims are grounded in reading the TabPFN v2 source (<code>transformer.py</code>, <code>layer.py</code>, <code>bar_distribution.py</code>, <code>encoders.py</code>).</p>
+  <p style="margin-top:0.75rem;">TabPFN is developed by <a href="https://priorlabs.ai" target="_blank">Prior Labs</a>. The original models and source code are the work of the Prior Labs team. </p>
+</footer>
+</body>
+</html>

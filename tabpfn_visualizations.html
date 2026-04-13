@@ -1,0 +1,2341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TabPFN — Five Interactive Visualizations</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0f0f11;
+  --bg2: #181820;
+  --bg3: #1e1e28;
+  --border: rgba(255,255,255,0.08);
+  --text: #e8e6f0;
+  --muted: #7a7890;
+  --accent: #7c6af5;
+  --amber: #e8a623;
+  --teal: #2ec4b6;
+  --coral: #e8604c;
+  --green: #5ecb8a;
+  --serif: 'Fraunces', Georgia, serif;
+  --sans: 'DM Sans', system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.65;
+  padding: 0 0 4rem;
+}
+
+/* ── Nav ── */
+.nav {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  background: var(--bg2);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.nav-btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  padding: 14px 20px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.nav-btn.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.nav-btn:hover { color: var(--text); }
+
+/* ── Sections ── */
+.section { display: none; padding: 2.5rem 2rem; max-width: 900px; margin: 0 auto; }
+.section.active { display: block; }
+
+.section-title {
+  font-family: var(--serif);
+  font-size: 1.7rem;
+  font-weight: 300;
+  margin-bottom: 0.4rem;
+  color: var(--text);
+}
+
+.section-sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 2rem;
+  max-width: 620px;
+  line-height: 1.7;
+}
+
+.vis-box {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.ctrl-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.btn {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn:hover { background: rgba(124,106,245,0.15); border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { background: #8f7ef7; }
+
+label { font-size: 12px; color: var(--muted); }
+
+/* ── SECTION 1: DAG ── */
+#dag-canvas {
+  width: 100%;
+  height: 300px;
+  position: relative;
+  overflow: hidden;
+}
+
+#dag-canvas svg { width: 100%; height: 100%; }
+
+.dag-step-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 0.75rem;
+  min-height: 1.5rem;
+}
+
+.dag-step-label span { color: var(--amber); }
+
+.dag-pip {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  background: var(--bg3);
+  transition: background 0.2s, color 0.2s, border-color 0.2s;
+  white-space: nowrap;
+}
+
+.dag-pip.active {
+  background: rgba(232,166,35,0.15);
+  color: var(--amber);
+  border-color: rgba(232,166,35,0.5);
+}
+
+table.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  font-family: var(--mono);
+}
+
+table.data-table th {
+  background: var(--bg3);
+  color: var(--muted);
+  font-weight: 500;
+  padding: 6px 8px;
+  text-align: center;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--border);
+}
+
+table.data-table td {
+  padding: 7px 8px;
+  text-align: center;
+  border: 1px solid var(--border);
+  transition: background 0.5s, box-shadow 0.5s, opacity 0.4s;
+  user-select: none;
+}
+
+table.data-table td.query {
+  background: rgba(232,96,76,0.22);
+  color: #f0a090;
+  box-shadow: inset 0 0 0 2.5px var(--coral);
+}
+
+table.data-table td.key-match {
+  background: transparent;
+  color: var(--text);
+  box-shadow: inset 0 0 0 2.5px var(--amber);
+}
+
+table.data-table td.value-agg {
+  background: rgba(94,203,138,0.25);
+  color: #7ddaa0;
+  box-shadow: none;
+}
+
+table.data-table td.dim-out {
+  opacity: 0.2;
+}
+
+table.data-table tr.row-highlight td {
+  border-color: rgba(124,106,245,0.4);
+}
+
+.attn-legend {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+  font-size: 11px;
+  font-family: var(--mono);
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+
+.attn-explanation {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-top: 0.75rem;
+  min-height: 3rem;
+}
+
+/* ── SECTION 3: Architecture ── */
+#arch-svg { width: 100%; overflow: visible; }
+
+.arch-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 0.5rem;
+}
+
+/* ── SECTION 4: Bar distribution ── */
+#bar-canvas {
+  width: 100%;
+  height: 220px;
+}
+
+.nll-display {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--teal);
+  margin-top: 0.5rem;
+}
+
+.nll-display span { color: var(--text); font-size: 18px; }
+
+/* ── SECTION 5: Learned kernel ── */
+#kernel-canvas {
+  width: 100%;
+  height: 320px;
+  cursor: crosshair;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg3);
+}
+
+.weight-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 0.75rem;
+}
+
+.weight-chip {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  transition: background 0.2s, border-color 0.2s;
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="nav-btn active" onclick="showSection(0)">① DAG Generation</button>
+  <button class="nav-btn" onclick="showSection(1)">② Row &amp; Column Attention</button>
+  <button class="nav-btn" onclick="showSection(2)">③ Architecture Flow</button>
+  <button class="nav-btn" onclick="showSection(3)">④ Bar Distribution Loss</button>
+  <button class="nav-btn" onclick="showSection(4)">⑤ What the Model Learns</button>
+</nav>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 1: DAG SYNTHETIC DATA GENERATION                   -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section class="section active" id="sec0">
+  <h2 class="section-title">Synthetic data from causal graphs</h2>
+  <p class="section-sub">Tabular foundation models learn by training on millions of synthetic datasets. Each one is generated from a random Directed Acyclic Graph (DAG), a causal model where each node is a feature computed from its parents. Three steps repeat for each new dataset: (1) sample a random DAG, (2) assign edge weights and node functions, (3) inject noise at root nodes and propagate forward to produce one row of data.</p>
+
+  <div class="vis-box">
+    <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap;">
+      <span id="dag-step-0" class="dag-pip">① Sample DAG</span>
+      <span style="color:var(--muted);line-height:28px;">→</span>
+      <span id="dag-step-1" class="dag-pip">② Assign weights &amp; functions</span>
+      <span style="color:var(--muted);line-height:28px;">→</span>
+      <span id="dag-step-2" class="dag-pip">③ Propagate noise ε</span>
+      <span style="color:var(--muted);line-height:28px;">→</span>
+      <span id="dag-step-3" class="dag-pip">④ Output: one data row</span>
+    </div>
+    <div id="dag-canvas" style="height:380px;">
+      <svg id="dag-svg" viewBox="0 0 820 380" style="width:100%;height:100%;"></svg>
+    </div>
+    <div class="dag-step-label" id="dag-label" style="min-height:2.2rem; margin-top:8px;">Press Play to start.</div>
+    <div class="ctrl-row">
+      <button class="btn primary" id="dag-play-btn" onclick="dagPlay()">▶ Play</button>
+      <button class="btn" onclick="dagReset()">↺ Reset</button>
+      <button class="btn" onclick="dagStepOnce()">Step →</button>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 2: ROW & COLUMN ATTENTION                          -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section class="section" id="sec1">
+  <h2 class="section-title">Row &amp; column attention</h2>
+  <p class="section-sub">Each token in the model represents one <em>(row, feature-group)</em> cell plus an extra column for the label y. <strong style="color:var(--teal)">Column attention</strong> runs within a single row across all feature tokens <em>including the label</em>, letting features read the label on training rows. <strong style="color:var(--amber)">Row attention</strong> runs at a fixed feature-group position across rows, for test rows, K/V come only from training rows, transferring label information into the query's label slot. That slot is then extracted and decoded as the final prediction.</p>
+
+  <div class="vis-box">
+    <div style="display:flex; gap:10px; margin-bottom:14px; flex-wrap:wrap; align-items:center;">
+      <button class="btn primary" id="attn-mode-col" onclick="setAttnMode('col')">Column attention</button>
+      <button class="btn" id="attn-mode-row" onclick="setAttnMode('row')">Row attention</button>
+      <span style="color:var(--muted);font-size:12px;font-family:var(--mono);" id="attn-step-counter"></span>
+    </div>
+
+    <div id="attn-mode-label" style="font-family:var(--mono);font-size:10px;letter-spacing:0.1em;color:var(--muted);text-transform:uppercase;margin-bottom:8px;"></div>
+
+    <table class="data-table" id="attn-table">
+      <thead>
+        <tr>
+          <th></th><th>age</th><th>income</th><th>debt</th><th>score</th><th>label (y)</th>
+        </tr>
+      </thead>
+      <tbody id="attn-tbody"></tbody>
+    </table>
+
+    <div class="attn-legend" style="margin-top:12px;">
+      <span><span class="legend-dot" style="background:rgba(232,96,76,0.22);box-shadow:inset 0 0 0 2.5px var(--coral);"></span>Query (Q) — cell being updated</span>
+      <span><span class="legend-dot" style="background:transparent;box-shadow:inset 0 0 0 2.5px var(--amber);"></span>Keys (K) — border only: similarity compared</span>
+      <span><span class="legend-dot" style="background:rgba(94,203,138,0.25);"></span>Values (V) — fill: content aggregated into Q</span>
+      <span><span class="legend-dot" style="background:rgba(255,255,255,0.04);opacity:0.3;"></span>Not involved in this pass</span>
+    </div>
+
+    <div class="attn-explanation" id="attn-explanation" style="margin-top:12px; padding:10px 12px; background:var(--bg3); border-radius:6px; min-height:3.5rem;"></div>
+
+    <div class="ctrl-row" style="margin-top:10px;">
+      <button class="btn" onclick="attnPrev()">← Prev example</button>
+      <button class="btn" onclick="attnNext()">Next example →</button>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 3: ARCHITECTURE FLOW                               -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section class="section" id="sec2">
+  <h2 class="section-title">Architecture: PerFeatureTransformer</h2>
+  <p class="section-sub">Starting from a raw tabular dataset, the model encodes each (row, feature-group) cell independently, appending the label y as a final column, then passes the tensor through L identical layers. Each layer runs column attention, then row attention, then an MLP (each followed by LayerNorm). After all layers, only the label-slot embeddings of the test rows are extracted and decoded to produce predictions. Click any block to read what it does.</p>
+
+  <div class="vis-box" style="padding:1rem;">
+    <svg id="arch-svg" viewBox="0 0 820 520" style="width:100%;display:block;"></svg>
+    <div id="arch-detail" style="min-height:3rem; padding:10px 12px; background:var(--bg3); border-radius:6px; font-size:12px; color:var(--muted); font-family:var(--mono); margin-top:0.75rem; line-height:1.6;">Click any block above to learn more.</div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 4: BAR DISTRIBUTION LOSS                           -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section class="section" id="sec3">
+  <h2 class="section-title">The bar distribution &amp; how regression becomes classification</h2>
+  <p class="section-sub">Tabular foundation models turn regression into a classification problem by discretising the target range into N equal-probability buckets. The model outputs a softmax over buckets, a histogram approximating the full predictive distribution. The loss is the NLL of the true target's bucket, scaled by bucket width to give a proper density. Step through the four stages to see how this works.</p>
+
+  <div class="vis-box" style="padding:1rem;">
+    <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;align-items:center;">
+      <span id="bd-pip-0" class="dag-pip">① Build borders</span>
+      <span style="color:var(--muted);line-height:26px;font-size:12px;">→</span>
+      <span id="bd-pip-1" class="dag-pip">② Map y → bucket</span>
+      <span style="color:var(--muted);line-height:26px;font-size:12px;">→</span>
+      <span id="bd-pip-2" class="dag-pip">③ Compute NLL loss</span>
+      <span style="color:var(--muted);line-height:26px;font-size:12px;">→</span>
+      <span id="bd-pip-3" class="dag-pip">④ Training loop</span>
+    </div>
+    <canvas id="bar-canvas" style="width:100%;height:300px;display:block;border-radius:6px;background:var(--bg3);"></canvas>
+    <div id="bd-caption" style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;min-height:2.8rem;line-height:1.6;padding:8px 10px;background:var(--bg3);border-radius:6px;"></div>
+    <div class="ctrl-row" style="margin-top:10px;">
+      <button class="btn primary" id="bd-play-btn" onclick="bdPlay()">▶ Play</button>
+      <button class="btn" onclick="bdReset()">↺ Reset</button>
+      <button class="btn" onclick="bdStepOnce()">Step →</button>
+    </div>
+  </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 5: WHAT THE MODEL LEARNS                           -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section class="section" id="sec4">
+  <h2 class="section-title">What the model learns: amortised Bayesian inference</h2>
+  <p class="section-sub">The model's weights don't store data; they store an <em>algorithm</em>. During training on hundreds of millions of synthetic datasets, the model minimises the expected NLL of masked labels across all datasets in the prior. By the PFN paper's Insight 1, this is equivalent to minimising the KL divergence between the model's output and the true Bayesian posterior predictive distribution averaged over every dataset the prior can generate. The weights learn to recognise the statistical fingerprint of a dataset (its noise level, linearity, feature interactions) and map it to the posterior that a Bayesian reasoner with the same prior would produce. At inference, reading the training set through attention <em>is</em> the computation.</p>
+
+  <div class="vis-box" style="padding:1rem;">
+    <canvas id="learn-canvas" style="width:100%;height:360px;display:block;border-radius:6px;"></canvas>
+    <div id="learn-caption" style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;min-height:2.5rem;line-height:1.65;padding:8px 10px;background:var(--bg3);border-radius:6px;"></div>
+    <div class="ctrl-row" style="margin-top:10px;">
+      <button class="btn primary" id="learn-play-btn" onclick="learnPlay()">▶ Play</button>
+      <button class="btn" onclick="learnReset()">↺ Reset</button>
+      <button class="btn" onclick="learnStep()">Step →</button>
+    </div>
+  </div>
+</section>
+
+
+<script>
+/* ═══════════════════════════════════════════════ */
+/* NAV                                             */
+/* ═══════════════════════════════════════════════ */
+function showSection(i) {
+  document.querySelectorAll('.section').forEach((s,j) => s.classList.toggle('active', j===i));
+  document.querySelectorAll('.nav-btn').forEach((b,j) => b.classList.toggle('active', j===i));
+  if (i===2) drawArch();
+  if (i===3) { initBarDist(); }
+  if (i===4) { initKernel(); }
+}
+
+
+/* ═══════════════════════════════════════════════ */
+/* SECTION 1: DAG                                  */
+/* ═══════════════════════════════════════════════ */
+const dagSvg = document.getElementById('dag-svg');
+let dagTimer = null;
+let dagRunning = false;
+let dagCycle = 0;
+let dagPhase = -1;
+let dagGraph = null;
+
+// Simple 4-node DAGs to avoid confusion with neural architecture diagrams
+// Each graph: 2 root (input) features, 1 hidden node, 1 output target
+const dagGraphs = [
+  {
+    nodes: [
+      {id:0, x:120, y:100, label:'X₁', type:'root',   desc:'age'},
+      {id:1, x:120, y:220, label:'X₂', type:'root',   desc:'income'},
+      {id:2, x:360, y:100, label:'X₃', type:'root',   desc:'debt'},
+      {id:3, x:360, y:220, label:'H',  type:'hidden',  desc:''},
+      {id:4, x:580, y:160, label:'Y',  type:'target',  desc:'loan risk'},
+    ],
+    edges: [[0,3],[1,3],[2,3],[3,4],[0,4]],
+    funcs: {3:'ReLU(Wx)', 4:'σ(Wx)'},
+    weights: {0:'+0.82', 1:'-1.24', 2:'+0.53', 3:'+1.10', 4:'-0.37'},
+  },
+  {
+    nodes: [
+      {id:0, x:110, y:80,  label:'X₁', type:'root',   desc:'temp'},
+      {id:1, x:110, y:220, label:'X₂', type:'root',   desc:'humidity'},
+      {id:2, x:350, y:150, label:'H',  type:'hidden',  desc:''},
+      {id:3, x:580, y:150, label:'Y',  type:'target',  desc:'rainfall'},
+    ],
+    edges: [[0,2],[1,2],[0,3],[2,3]],
+    funcs: {2:'tanh(Wx)', 3:'σ(Wx)'},
+    weights: {0:'+1.05', 1:'+0.67', 2:'+0.91', 3:'-0.42'},
+  },
+  {
+    nodes: [
+      {id:0, x:100, y:80,  label:'X₁', type:'root',   desc:'price'},
+      {id:1, x:100, y:180, label:'X₂', type:'root',   desc:'vol'},
+      {id:2, x:100, y:270, label:'X₃', type:'root',   desc:'trend'},
+      {id:3, x:360, y:175, label:'H',  type:'hidden',  desc:''},
+      {id:4, x:580, y:175, label:'Y',  type:'target',  desc:'return'},
+    ],
+    edges: [[0,3],[1,3],[2,3],[3,4]],
+    funcs: {3:'ReLU(Wx)', 4:'linear'},
+    weights: {0:'+0.44', 1:'+1.31', 2:'-0.89', 3:'+0.72'},
+  },
+];
+
+// Noise values sampled per cycle
+let dagNoiseValues = {};
+// Computed node values after propagation
+let dagNodeValues = {};
+
+const STEP_LABELS = [
+  ['① Sample DAG', `A random DAG is drawn. Root nodes (purple) are inputs; the target (green) is the output we want to predict. The graph defines which features causally influence which.`],
+  ['② Assign weights &amp; functions', `Each edge gets a random weight w. Each non-root node is assigned a nonlinear function f (ReLU, tanh, sigmoid…). These together define the data-generating mechanism.`],
+  ['③ Sample &amp; propagate noise ε', `Noise ε ~ N(0, σ²) is sampled at each root node. Values propagate forward: each node computes f(Σ wᵢ · parentᵢ + εᵢ). Watch values light up left-to-right.`],
+  ['④ One row of synthetic data produced', `The computed values become one row of a synthetic dataset. Repeat 130 million times across many different DAGs — that is the pretraining corpus TabPFN learns from.`],
+];
+
+function setDagPip(active) {
+  for (let i = 0; i < 4; i++) {
+    const el = document.getElementById(`dag-step-${i}`);
+    if (el) el.classList.toggle('active', i === active);
+  }
+}
+
+function dagReset() {
+  clearTimeout(dagTimer);
+  dagRunning = false;
+  dagPhase = -1;
+  dagCycle = 0;
+  dagSvg.innerHTML = '';
+  document.getElementById('dag-label').innerHTML = 'Press Play to start, or use Step → to advance manually.';
+  document.getElementById('dag-play-btn').textContent = '▶ Play';
+  setDagPip(-1);
+}
+
+function dagPlay() {
+  if (dagRunning) {
+    dagRunning = false;
+    clearTimeout(dagTimer);
+    document.getElementById('dag-play-btn').textContent = '▶ Play';
+    return;
+  }
+  dagRunning = true;
+  document.getElementById('dag-play-btn').textContent = '⏸ Pause';
+  dagAdvance();
+}
+
+function dagStepOnce() {
+  dagRunning = false;
+  clearTimeout(dagTimer);
+  document.getElementById('dag-play-btn').textContent = '▶ Play';
+  dagAdvance();
+}
+
+function dagAdvance() {
+  dagPhase++;
+  if (dagPhase > 3) { dagPhase = 0; dagCycle = (dagCycle + 1) % dagGraphs.length; }
+  dagGraph = dagGraphs[dagCycle];
+
+  if      (dagPhase === 0) dagDrawStep0();
+  else if (dagPhase === 1) dagDrawStep1();
+  else if (dagPhase === 2) dagDrawStep2();
+  else if (dagPhase === 3) dagDrawStep3();
+
+  setDagPip(dagPhase);
+  document.getElementById('dag-label').innerHTML = `<strong style="color:var(--amber)">${STEP_LABELS[dagPhase][0]}</strong> — ${STEP_LABELS[dagPhase][1]}`;
+
+  if (dagRunning) {
+    const delay = dagPhase === 2 ? 3200 : 2200; // step 3 (noise propagation) needs longer
+    dagTimer = setTimeout(dagAdvance, delay);
+  }
+}
+
+function svgEl(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const [k,v] of Object.entries(attrs || {})) el.setAttribute(k, v);
+  return el;
+}
+
+function dagEnsureDefs() {
+  if (dagSvg.querySelector('defs')) return;
+  const defs = svgEl('defs',{});
+  // Arrow for edges
+  const mk = svgEl('marker',{id:'dag-arrow',viewBox:'0 0 10 10',refX:'8',refY:'5',markerWidth:'5',markerHeight:'5',orient:'auto-start-reverse'});
+  const mp = svgEl('path',{d:'M2 1L8 5L2 9',fill:'none',stroke:'#5a5870','stroke-width':'1.5','stroke-linecap':'round','stroke-linejoin':'round'});
+  mk.appendChild(mp); defs.appendChild(mk);
+  // Arrow for active propagation
+  const mk2 = svgEl('marker',{id:'dag-arrow-active',viewBox:'0 0 10 10',refX:'8',refY:'5',markerWidth:'5',markerHeight:'5',orient:'auto-start-reverse'});
+  const mp2 = svgEl('path',{d:'M2 1L8 5L2 9',fill:'none',stroke:'#e8a623','stroke-width':'1.5','stroke-linecap':'round','stroke-linejoin':'round'});
+  mk2.appendChild(mp2); defs.appendChild(mk2);
+  dagSvg.appendChild(defs);
+}
+
+function nodeColor(type) {
+  if (type==='root')   return {fill:'#1b2035',stroke:'#7c6af5',text:'#9a8af8'};
+  if (type==='target') return {fill:'#182820',stroke:'#5ecb8a',text:'#7ddaa0'};
+  return {fill:'#1e1e2c',stroke:'#444460',text:'#8888aa'};
+}
+
+function dagDrawNodes(g, activeNodeIds=[]) {
+  g.nodes.forEach(n => {
+    const existing = document.getElementById(`dn-${n.id}`);
+    if (existing) {
+      // Update circle highlight only
+      const c = existing.querySelector('circle');
+      const col = nodeColor(n.type);
+      const isActive = activeNodeIds.includes(n.id);
+      c.setAttribute('stroke', isActive ? '#e8a623' : col.stroke);
+      c.setAttribute('stroke-width', isActive ? '2.5' : '1.5');
+      c.setAttribute('fill', isActive ? '#2a2010' : col.fill);
+      // Restore original label text when no longer active
+      if (!isActive) {
+        const lbl = existing.querySelector('text');
+        if (lbl && lbl._origText) {
+          lbl.textContent = lbl._origText;
+          lbl.setAttribute('fill', col.text);
+          lbl.setAttribute('font-size','16');
+        }
+      }
+      return;
+    }
+    const col = nodeColor(n.type);
+    const grp = svgEl('g',{id:`dn-${n.id}`,opacity:'0'});
+    const circ = svgEl('circle',{cx:n.x,cy:n.y,r:'32',fill:col.fill,stroke:col.stroke,'stroke-width':'2'});
+    const lbl = svgEl('text',{x:n.x,y:n.y-(n.desc?6:0),'text-anchor':'middle','dominant-baseline':'middle','font-family':'IBM Plex Mono','font-size':'16','font-weight':'500',fill:col.text});
+    lbl.textContent = n.label;
+    grp.appendChild(circ); grp.appendChild(lbl);
+    if (n.desc) {
+      const desc = svgEl('text',{x:n.x,y:n.y+12,'text-anchor':'middle','dominant-baseline':'middle','font-family':'DM Sans','font-size':'11',fill:'rgba(180,180,220,0.65)'});
+      desc.textContent = n.desc;
+      grp.appendChild(desc);
+    }
+    grp.id = `dn-${n.id}`;
+    dagSvg.appendChild(grp);
+    setTimeout(() => { grp.setAttribute('opacity','1'); }, 50);
+  });
+}
+
+function dagDrawEdges(g, activeEdgeIds=[], showWeights=false) {
+  g.edges.forEach((e, ei) => {
+    const [si, di] = e;
+    const ns = g.nodes[si], nd = g.nodes[di];
+    const dx = nd.x-ns.x, dy = nd.y-ns.y;
+    const len = Math.sqrt(dx*dx+dy*dy);
+    const ux = dx/len, uy = dy/len;
+    const x1 = ns.x+ux*33, y1 = ns.y+uy*33;
+    const x2 = nd.x-ux*34, y2 = nd.y-uy*34;
+    const eid = `de-${ei}`;
+    const isActive = activeEdgeIds.includes(ei);
+
+    let line = document.getElementById(eid);
+    if (!line) {
+      line = svgEl('line',{id:eid,x1,y1,x2,y2,stroke:'rgba(90,88,120,0.4)','stroke-width':'1.5','marker-end':'url(#dag-arrow)'});
+      // Insert before nodes (after defs)
+      const firstNode = document.getElementById(`dn-0`);
+      dagSvg.insertBefore(line, firstNode || null);
+    }
+    if (isActive) {
+      line.setAttribute('stroke','rgba(232,166,35,0.85)');
+      line.setAttribute('stroke-width','2.5');
+      line.setAttribute('marker-end','url(#dag-arrow-active)');
+    } else {
+      line.setAttribute('stroke','rgba(90,88,120,0.35)');
+      line.setAttribute('stroke-width','1.5');
+      line.setAttribute('marker-end','url(#dag-arrow)');
+    }
+
+    if (showWeights) {
+      const wx = (x1+x2)/2 + uy*14, wy = (y1+y2)/2 - ux*14;
+      const wid = `dw-${ei}`;
+      let wtxt = document.getElementById(wid);
+      if (!wtxt) {
+        wtxt = svgEl('text',{id:wid,x:wx,y:wy,'text-anchor':'middle','font-family':'IBM Plex Mono','font-size':'12',fill:'rgba(232,166,35,0.0)','pointer-events':'none'});
+        dagSvg.appendChild(wtxt);
+      }
+      wtxt.textContent = `w=${g.weights[si] || '+?'}`;
+      wtxt.setAttribute('fill', isActive ? 'rgba(232,166,35,0.95)' : 'rgba(232,166,35,0.55)');
+    }
+  });
+}
+
+function dagAddFuncLabel(n, func) {
+  const fid = `df-${n.id}`;
+  let ftxt = document.getElementById(fid);
+
+  // Check if any other node is close below this one (within 90px)
+  const nodeBelow = dagGraph.nodes.some(other =>
+    other.id !== n.id && other.y > n.y && other.y - n.y < 90 && Math.abs(other.x - n.x) < 60
+  );
+  // If something is directly below, put label to the right; otherwise below
+  const lx = nodeBelow ? n.x + 40 : n.x;
+  const ly = nodeBelow ? n.y + 8  : n.y + 52;
+  const anchor = nodeBelow ? 'start' : 'middle';
+
+  if (!ftxt) {
+    ftxt = svgEl('text',{id:fid,x:lx,y:ly,'text-anchor':anchor,'font-family':'IBM Plex Mono','font-size':'12',fill:'rgba(46,196,182,0.0)','pointer-events':'none'});
+    dagSvg.appendChild(ftxt);
+  } else {
+    ftxt.setAttribute('x', lx);
+    ftxt.setAttribute('y', ly);
+    ftxt.setAttribute('text-anchor', anchor);
+  }
+  ftxt.textContent = func;
+  ftxt.setAttribute('fill','rgba(46,196,182,0.75)');
+}
+
+function dagAddValueLabel(n, val) {
+  // Show value inside the node by temporarily replacing the label text
+  const grp = document.getElementById(`dn-${n.id}`);
+  if (!grp) return;
+  const lbl = grp.querySelector('text');
+  if (lbl) {
+    lbl._origText = lbl._origText || lbl.textContent;
+    lbl.textContent = val;
+    lbl.setAttribute('fill','rgba(255,220,100,0.95)');
+    lbl.setAttribute('font-size','12');
+  }
+  // Also store in a hidden element so step 3 can retrieve it
+  let vtxt = document.getElementById(`dv-${n.id}`);
+  if (!vtxt) {
+    vtxt = svgEl('text',{id:`dv-${n.id}`,x:n.x,y:n.y,'text-anchor':'middle','font-size':'1',fill:'rgba(0,0,0,0)','pointer-events':'none'});
+    dagSvg.appendChild(vtxt);
+  }
+  vtxt.textContent = val;
+}
+
+/* Legend — drawn once, bottom-right, persists through all steps */
+function dagDrawLegend() {
+  if (document.getElementById('dag-legend')) return; // already drawn
+  const items = [
+    { color: '#7c6af5', label: 'Input feature  (root node)',  dashed: false },
+    { color: '#444460', label: 'Node',                         dashed: false },
+    { color: '#5ecb8a', label: 'Target output  (Y)',           dashed: false },
+    { color: '#e8a623', label: 'Active — value propagating',   dashed: true  },
+  ];
+
+  const lX = 636, lY = 30, rowH = 26;
+  const grp = svgEl('g', {id:'dag-legend'});
+
+  // Background pill
+  const bg = svgEl('rect',{
+    x: lX - 12, y: lY - 14,
+    width: 196, height: items.length * rowH + 20,
+    rx: '8', fill: 'rgba(15,15,20,0.82)',
+    stroke: 'rgba(255,255,255,0.07)', 'stroke-width': '1'
+  });
+  grp.appendChild(bg);
+
+  // Title
+  const title = svgEl('text',{
+    x: lX + 86, y: lY,
+    'text-anchor': 'middle', 'dominant-baseline': 'middle',
+    'font-family': 'IBM Plex Mono', 'font-size': '10',
+    fill: 'rgba(160,160,200,0.5)', 'letter-spacing': '0.08em'
+  });
+  title.textContent = 'NODE TYPES';
+  grp.appendChild(title);
+
+  items.forEach((item, i) => {
+    const cy = lY + 18 + i * rowH;
+
+    const circ = svgEl('circle',{
+      cx: lX + 10, cy,
+      r: '10',
+      fill: item.dashed ? 'rgba(40,30,10,0.9)' : 'rgba(20,20,35,0.9)',
+      stroke: item.color,
+      'stroke-width': item.dashed ? '2' : '1.5',
+      'stroke-dasharray': item.dashed ? '4 2' : 'none'
+    });
+    grp.appendChild(circ);
+
+    const txt = svgEl('text',{
+      x: lX + 26, y: cy + 1,
+      'dominant-baseline': 'middle',
+      'font-family': 'DM Sans', 'font-size': '12',
+      fill: 'rgba(200,200,220,0.85)'
+    });
+    txt.textContent = item.label;
+    grp.appendChild(txt);
+  });
+
+  dagSvg.appendChild(grp);
+}
+
+/* Step 0: Show nodes only */
+function dagDrawStep0() {
+  dagSvg.innerHTML = '';
+  dagEnsureDefs();
+  dagNoiseValues = {};
+  dagNodeValues = {};
+  dagGraph.nodes.forEach((n,i) => {
+    setTimeout(() => dagDrawNodes(dagGraph), i * 120);
+  });
+  dagDrawLegend();
+}
+
+/* Step 1: Draw edges + weights + function labels */
+function dagDrawStep1() {
+  dagEnsureDefs();
+  dagDrawLegend();
+  dagDrawNodes(dagGraph);
+  dagGraph.edges.forEach((e, i) => {
+    setTimeout(() => {
+      dagDrawEdges(dagGraph, [], true);
+    }, i * 150);
+  });
+  // Function labels
+  dagGraph.nodes.forEach(n => {
+    if (dagGraph.funcs[n.id]) {
+      setTimeout(() => dagAddFuncLabel(n, dagGraph.funcs[n.id]), 300 + n.id * 100);
+    }
+  });
+}
+
+/* Step 2: Noise propagation — left-to-right per topological order */
+function dagDrawStep2() {
+  dagEnsureDefs();
+  dagDrawLegend();
+  dagDrawEdges(dagGraph, [], true);
+
+  // Topological order by x position
+  const order = [...dagGraph.nodes].sort((a,b) => a.x - b.x);
+
+  // Sample noise for root nodes
+  dagGraph.nodes.forEach(n => {
+    if (n.type === 'root') {
+      dagNoiseValues[n.id] = (Math.random()*1.4 - 0.7).toFixed(2);
+    }
+  });
+
+  order.forEach((n, i) => {
+    setTimeout(() => {
+      // Find incoming edges
+      const incoming = dagGraph.edges
+        .map((e, ei) => ({src:e[0],dst:e[1],ei}))
+        .filter(e => e.dst === n.id);
+
+      // Highlight incoming edges
+      const activeEdges = incoming.map(e => e.ei);
+      dagDrawEdges(dagGraph, activeEdges, true);
+      dagDrawNodes(dagGraph, [n.id]);
+
+      // Compute value
+      let val;
+      if (n.type === 'root') {
+        val = dagNoiseValues[n.id];
+      } else {
+        const sum = incoming.reduce((acc, e) => {
+          const wkey = e.src;
+          const w = parseFloat(dagGraph.weights[wkey] || '1');
+          const pv = parseFloat(dagNodeValues[e.src] || '0');
+          return acc + w * pv;
+        }, 0);
+        val = (sum + (Math.random()*0.3-0.15)).toFixed(2);
+      }
+      dagNodeValues[n.id] = val;
+
+      const prefix = n.type === 'root' ? 'ε=' : '';
+      dagAddValueLabel(n, `${prefix}${val}`);
+
+      // After brief pause, un-highlight
+      setTimeout(() => {
+        dagDrawEdges(dagGraph, [], true);
+        dagDrawNodes(dagGraph, []);
+      }, 700);
+    }, i * 900);
+  });
+}
+
+/* Step 3: Output table row */
+function dagDrawStep3() {
+  dagEnsureDefs();
+  dagDrawLegend();
+  dagDrawEdges(dagGraph, [], true);
+  dagDrawNodes(dagGraph, []);
+
+  const g = dagGraph;
+
+  // Ensure all node values are computed — compute any missing ones now
+  // so the table always has real numbers even if step 2 was skipped.
+  const order = [...g.nodes].sort((a,b) => a.x - b.x);
+  order.forEach(n => {
+    if (dagNodeValues[n.id] !== undefined) return;
+    if (n.type === 'root') {
+      dagNodeValues[n.id] = (Math.random()*1.4 - 0.7).toFixed(2);
+    } else {
+      const incoming = g.edges
+        .map((e, ei) => ({src:e[0],dst:e[1],ei}))
+        .filter(e => e.dst === n.id);
+      const sum = incoming.reduce((acc, e) => {
+        const w = parseFloat(g.weights[e.src] || '1');
+        const pv = parseFloat(dagNodeValues[e.src] || '0');
+        return acc + w * pv;
+      }, 0);
+      dagNodeValues[n.id] = (sum + (Math.random()*0.3 - 0.15)).toFixed(2);
+    }
+  });
+
+  // Table layout — placed below the graph area
+  const tX = 30, tY = 312;
+  const cellW = 72, cellH = 28;
+
+  // Column headers: use desc for root nodes, label for target
+  const nonTarget = g.nodes.filter(n => n.type !== 'target');
+  const yNode = g.nodes.find(n => n.type === 'target');
+  const cols = nonTarget.map(n => n.desc || n.label);
+  cols.push(yNode.desc || yNode.label);
+  const vals = nonTarget.map(n => dagNodeValues[n.id] ?? '—');
+  vals.push(dagNodeValues[yNode.id] ?? '—');
+
+  // Table header row
+  cols.forEach((c, ci) => {
+    const isY = ci === cols.length - 1;
+    const bg = svgEl('rect',{x:tX+ci*cellW, y:tY, width:cellW-1, height:cellH-1,
+      fill: isY ? '#0e1e10' : '#1c1c2a',
+      stroke:'rgba(255,255,255,0.12)', 'stroke-width':'0.5', opacity:'0', rx:'3'});
+    const htxt = svgEl('text',{x:tX+ci*cellW+cellW/2, y:tY+cellH/2,
+      'text-anchor':'middle','dominant-baseline':'middle',
+      'font-family':'IBM Plex Mono','font-size':'11',
+      fill: isY ? 'rgba(94,203,138,0.7)' : '#6a6a8a'});
+    htxt.textContent = c;
+    bg.id = `dthr-${ci}`;
+    dagSvg.appendChild(bg); dagSvg.appendChild(htxt);
+    setTimeout(() => { bg.setAttribute('opacity','1'); }, ci * 70);
+  });
+
+  // Data value row
+  vals.forEach((v, ci) => {
+    const isY = ci === cols.length - 1;
+    const bg = svgEl('rect',{x:tX+ci*cellW, y:tY+cellH, width:cellW-1, height:cellH-1,
+      fill: isY ? '#122514' : '#13131e',
+      stroke:'rgba(255,255,255,0.07)', 'stroke-width':'0.5', opacity:'0', rx:'3'});
+    const vtxt = svgEl('text',{x:tX+ci*cellW+cellW/2, y:tY+cellH*1.5,
+      'text-anchor':'middle','dominant-baseline':'middle',
+      'font-family':'IBM Plex Mono','font-size':'11',
+      fill: isY ? '#7ddaa0' : '#c0c0d8'});
+    vtxt.textContent = v;
+    dagSvg.appendChild(bg); dagSvg.appendChild(vtxt);
+    setTimeout(() => { bg.setAttribute('opacity','1'); }, 150 + ci * 70);
+  });
+
+  // "one row" label to the right
+  const rowLbl = svgEl('text',{
+    x: tX + cols.length * cellW + 10, y: tY + cellH * 1.5,
+    'font-family':'DM Sans','font-size':'13','dominant-baseline':'middle',
+    fill:'rgba(94,203,138,0.65)'});
+  rowLbl.textContent = '← one synthetic row  (×130M)';
+  dagSvg.appendChild(rowLbl);
+
+  // Vertical connector lines from each non-target node down to its table cell
+  nonTarget.forEach((n, ci) => {
+    const cellCX = tX + ci * cellW + cellW / 2;
+    const nodeBottom = n.y + 32;
+    const tableTop = tY;
+    if (tableTop - nodeBottom > 10) {
+      const connector = svgEl('line',{
+        x1: n.x, y1: nodeBottom + 4,
+        x2: cellCX, y2: tableTop - 2,
+        stroke:'rgba(120,120,180,0.18)', 'stroke-width':'1',
+        'stroke-dasharray':'3 3'});
+      dagSvg.insertBefore(connector, dagSvg.firstChild.nextSibling);
+    }
+  });
+}
+
+
+/* ═══════════════════════════════════════════════ */
+/* SECTION 2: ATTENTION Q/K/V                      */
+/* ═══════════════════════════════════════════════ */
+
+// Correct understanding from transformer.py:
+//
+// After encoding, tensor shape is (batch, seq_len, num_feature_groups + 1, d_model).
+// The LAST feature-group position (index -1) is the label y, encoded by y_encoder.
+// For training rows: label = actual value. For test/query rows: label = NaN (masked).
+//
+// COLUMN ATTENTION (attn_between_features):
+//   Operates on dim-2 (feature groups, including the label slot).
+//   For each row independently: every feature-group token attends to every other token
+//   in the same row — including the label slot. This lets features "read" the label
+//   on training rows. Applied to ALL rows (train and test).
+//
+// ROW ATTENTION (attn_between_items):
+//   Operates on dim-1 (seq/rows), after x.transpose(1,2).
+//   For each feature-group position independently: tokens across rows attend to each other.
+//   For test rows: K/V are restricted to x[:, :single_eval_pos] — training rows only.
+//   Training rows can attend to all training rows (self-attention among train).
+//   This is the in-context mechanism: test cells ask "which training rows matter here?"
+
+// Table: 4 training rows + 1 query row
+// Columns: row-label | age | income | debt | score | label(y)
+// col indices (1-based feature cols): 1=age, 2=income, 3=debt, 4=score, 5=label
+const ATTN_ROWS = [
+  {label:'train₁', vals:['34',  '52k',  'low',  '710', '✓ (yes)'], isTrain:true},
+  {label:'train₂', vals:['52',  '89k',  'high', '580', '✗ (no)'],  isTrain:true},
+  {label:'train₃', vals:['28',  '31k',  'med',  '650', '✓ (yes)'], isTrain:true},
+  {label:'train₄', vals:['61',  '120k', 'low',  '790', '✓ (yes)'], isTrain:true},
+  {label:'query ★',vals:['41',  '68k',  'med',  '?',   'NaN ▪'],   isTrain:false, isQuery:true},
+];
+const QUERY_ROW_IDX = 4;
+
+/* Column-attention examples:
+   Q = one feature cell in a row
+   K/V = ALL other feature cells in the SAME row (including label slot)
+   All other rows are not involved (dim out)
+*/
+const COL_EXAMPLES = [
+  {
+    row:0, col:1, // age in train₁
+    expl:`<strong style="color:var(--coral)">Q: age (34)</strong> — train₁ row. Column attention operates within this single row. Every other feature token — income, debt, score, AND the label "✓" — serves as <strong style="color:var(--amber)">Key</strong>. Their embeddings become <strong style="color:var(--green)">Values</strong> blended into the "age" token's new representation. The label is visible here because train₁ has a known label.`
+  },
+  {
+    row:0, col:5, // label in train₁ — label token attends to features
+    expl:`<strong style="color:var(--coral)">Q: label "✓"</strong> — train₁ row. The label slot also participates as a Query in column attention. It attends to all feature tokens (age, income, debt, score) to build a richer label embedding. This enriched label embedding is what row-attention later uses as a Key/Value when test rows ask "which training rows matter?"`
+  },
+  {
+    row:4, col:1, // age in query row
+    expl:`<strong style="color:var(--coral)">Q: age (41)</strong> — query row. Column attention runs on the query row too, but note the label slot here contains <em>NaN</em> (masked). The age token attends to the other query-row features (income, debt, score) to build context. The masked label provides no signal — it will only be filled in via row-attention from training rows.`
+  },
+  {
+    row:4, col:4, // score in query row
+    expl:`<strong style="color:var(--coral)">Q: score (?)</strong> — query row. Column attention runs on the score token in the query row, attending to age, income, debt, and the masked NaN label. Even though score is unknown, its embedding gains context from the other known features before row-attention queries the training rows.`
+  },
+];
+
+/* Row-attention examples:
+   Q = one feature-group token in the query row (or a training row)
+   K/V = the SAME feature-group position in all training rows
+   Other feature-group positions in the same row are not involved (dim out)
+   Note: each feature position attends independently
+*/
+const ROW_EXAMPLES = [
+  {
+    queryCol: 1, // "age" feature-group position
+    weights: [0.42, 0.06, 0.34, 0.18],
+    expl: `<strong style="color:var(--coral)">Q: age (41)</strong> — query row, age feature-group position. Row attention queries only the <strong style="color:var(--amber)">age position</strong> of every training row. train₁ (34) and train₃ (28) get highest weights — closest ages. Their <strong style="color:var(--green)">age-position embeddings</strong> (already enriched by column attention with label information) are aggregated into the query's age token. Other feature columns are not touched in this pass.`
+  },
+  {
+    queryCol: 5, // "label" feature-group position — the key one!
+    weights: [0.38, 0.05, 0.40, 0.17],
+    expl: `<strong style="color:var(--coral)">Q: label slot (NaN)</strong> — query row, label position. This is the most important row-attention pass. The query's masked label token attends to the <strong style="color:var(--amber)">label positions</strong> of all training rows (which carry the actual "✓"/"✗" labels). The resulting <strong style="color:var(--green)">aggregated value</strong> effectively transfers label information from similar training rows into the query's label slot. This is then extracted and decoded to produce the final prediction.`
+  },
+  {
+    queryCol: 3, // "debt" feature-group position
+    weights: [0.15, 0.08, 0.52, 0.25],
+    expl: `<strong style="color:var(--coral)">Q: debt (med)</strong> — query row, debt feature-group position. Attends only to the <strong style="color:var(--amber)">debt positions</strong> of training rows. train₃ (debt=med) gets the highest weight — same category. train₂ (high) gets the lowest. Each feature-group's row-attention runs independently; the debt pass only updates the debt token, not age or income.`
+  },
+];
+
+let attnMode = 'col';
+let attnExampleIdx = 0;
+
+function buildAttnTable() {
+  const tbody = document.getElementById('attn-tbody');
+  tbody.innerHTML = '';
+  ATTN_ROWS.forEach((r, ri) => {
+    const tr = document.createElement('tr');
+    tr.id = `attn-tr-${ri}`;
+    if (r.isQuery) tr.style.borderTop = '2px solid rgba(232,96,76,0.35)';
+
+    const th = document.createElement('td');
+    th.textContent = r.label;
+    th.style.fontFamily = 'var(--mono)';
+    th.style.fontSize = '10px';
+    th.style.color = r.isQuery ? 'var(--coral)' : 'var(--muted)';
+    th.style.whiteSpace = 'nowrap';
+    tr.appendChild(th);
+
+    r.vals.forEach((v, ci) => {
+      const td = document.createElement('td');
+      td.textContent = v;
+      td.id = `attn-cell-${ri}-${ci+1}`;
+      // Style the label column distinctly
+      if (ci === 4) { // label column (ci+1 = 5)
+        td.style.fontStyle = 'italic';
+        td.style.color = r.isQuery ? 'rgba(160,160,180,0.5)' : (v.startsWith('✓') ? 'var(--green)' : 'var(--coral)');
+      }
+      if (r.isQuery && v === '?') td.style.color = 'var(--muted)';
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+function clearAttnHighlights() {
+  document.querySelectorAll('#attn-tbody td').forEach(td => {
+    td.classList.remove('query','key-match','value-agg','dim-out');
+    td.style.opacity = '';
+  });
+}
+
+function setAttnMode(mode) {
+  attnMode = mode;
+  attnExampleIdx = 0;
+  document.getElementById('attn-mode-col').classList.toggle('primary', mode==='col');
+  document.getElementById('attn-mode-row').classList.toggle('primary', mode==='row');
+  renderAttnExample();
+}
+
+function attnNext() {
+  const examples = attnMode === 'col' ? COL_EXAMPLES : ROW_EXAMPLES;
+  attnExampleIdx = (attnExampleIdx + 1) % examples.length;
+  renderAttnExample();
+}
+
+function attnPrev() {
+  const examples = attnMode === 'col' ? COL_EXAMPLES : ROW_EXAMPLES;
+  attnExampleIdx = (attnExampleIdx - 1 + examples.length) % examples.length;
+  renderAttnExample();
+}
+
+function renderAttnExample() {
+  clearAttnHighlights();
+  const examples = attnMode === 'col' ? COL_EXAMPLES : ROW_EXAMPLES;
+  const ex = examples[attnExampleIdx];
+  const total = examples.length;
+  document.getElementById('attn-step-counter').textContent = `Example ${attnExampleIdx+1} / ${total}`;
+
+  if (attnMode === 'col') renderColAttn(ex);
+  else renderRowAttn(ex);
+
+  document.getElementById('attn-explanation').innerHTML = ex.expl;
+
+  const modeLabel = attnMode === 'col'
+    ? 'Column attention — within one row, all feature tokens (incl. label) attend to each other'
+    : 'Row attention — for one feature-group position, each row attends to other rows at the same position';
+  document.getElementById('attn-mode-label').textContent = modeLabel;
+}
+
+function renderColAttn(ex) {
+  // Q = (ex.row, ex.col). K/V = all other cols in same row (1–5, including label at 5).
+  // All other rows = dim out entirely.
+  const qCell = document.getElementById(`attn-cell-${ex.row}-${ex.col}`);
+  if (qCell) qCell.classList.add('query');
+
+  ATTN_ROWS.forEach((r, ri) => {
+    if (ri !== ex.row) {
+      document.getElementById(`attn-tr-${ri}`).querySelectorAll('td').forEach(td => td.classList.add('dim-out'));
+    } else {
+      for (let ci = 1; ci <= 5; ci++) {
+        if (ci === ex.col) continue;
+        const cell = document.getElementById(`attn-cell-${ri}-${ci}`);
+        if (cell) {
+          cell.classList.add('key-match');
+          setTimeout(() => { cell.classList.remove('key-match'); cell.classList.add('value-agg'); }, 1400);
+        }
+      }
+    }
+  });
+}
+
+function renderRowAttn(ex) {
+  // Q = query row's token at ex.queryCol.
+  // K/V = training rows' tokens at ex.queryCol (same feature-group position).
+  // All other feature columns = dim out in all rows.
+  const qCell = document.getElementById(`attn-cell-${QUERY_ROW_IDX}-${ex.queryCol}`);
+  if (qCell) qCell.classList.add('query');
+
+  // Dim query row's other columns
+  for (let ci = 1; ci <= 5; ci++) {
+    if (ci === ex.queryCol) continue;
+    const cell = document.getElementById(`attn-cell-${QUERY_ROW_IDX}-${ci}`);
+    if (cell) cell.classList.add('dim-out');
+  }
+
+  const maxW = Math.max(...ex.weights);
+  for (let ri = 0; ri < QUERY_ROW_IDX; ri++) {
+    // Dim other columns in this training row
+    for (let ci = 1; ci <= 5; ci++) {
+      if (ci !== ex.queryCol) {
+        const cell = document.getElementById(`attn-cell-${ri}-${ci}`);
+        if (cell) cell.classList.add('dim-out');
+      }
+    }
+    // Highlight the matching feature-group column as K, then V
+    const w = ex.weights[ri] ?? 0.1;
+    const relW = w / maxW;
+    const kCell = document.getElementById(`attn-cell-${ri}-${ex.queryCol}`);
+    if (kCell) {
+      kCell.classList.add('key-match');
+      kCell.style.opacity = String(0.35 + relW * 0.65);
+      kCell.title = `attention weight ≈ ${(w*100).toFixed(0)}%`;
+      setTimeout(() => { kCell.classList.remove('key-match'); kCell.classList.add('value-agg'); }, 1400);
+    }
+  }
+}
+
+// Initialize on load
+buildAttnTable();
+setAttnMode('col');
+
+
+/* ═══════════════════════════════════════════════ */
+/* SECTION 3: ARCHITECTURE                         */
+/* ═══════════════════════════════════════════════ */
+
+// Corrected understanding from transformer.py:
+// Input shape: (seq_len, batch, num_features) — i.e. rows × features flat
+// After rearrange: (batch, seq_len, num_feature_groups, features_per_group)
+// y is encoded separately then CAT'd as a final feature-group column:
+//   embedded_input = cat(embedded_x, embedded_y.unsqueeze(2), dim=2)
+//   → shape: (batch, seq_len, num_feature_groups + 1, d_model)
+//   The LAST position in dim-2 is the label column (y).
+// Column attention: across dim-2 (feature groups, including the label slot)
+// Row attention: across dim-1 (seq/rows), transposed. For test rows K/V only from train rows.
+// Output: encoder_out[:, single_eval_pos:, -1] — the LABEL SLOT of test rows only.
+
+function drawArch() {
+  const svg = document.getElementById('arch-svg');
+  svg.innerHTML = '';
+
+  // ── Arrow marker ──
+  const defs = svgEl('defs',{});
+  const mk = svgEl('marker',{id:'arch-arrow',viewBox:'0 0 10 10',refX:'8',refY:'5',markerWidth:'5',markerHeight:'5',orient:'auto-start-reverse'});
+  mk.appendChild(svgEl('path',{d:'M2 1L8 5L2 9',fill:'none',stroke:'#5a5870','stroke-width':'1.5','stroke-linecap':'round','stroke-linejoin':'round'}));
+  defs.appendChild(mk); svg.appendChild(defs);
+
+  function rect(x,y,w,h,fill,stroke,sw,rx,extra) {
+    return svgEl('rect',{x,y,width:w,height:h,fill,stroke,'stroke-width':sw||'1',rx:rx||'6',...(extra||{})});
+  }
+  function text(x,y,str,ff,fs,fill,anchor,weight) {
+    const t = svgEl('text',{x,y,'text-anchor':anchor||'middle','dominant-baseline':'middle','font-family':ff,'font-size':fs,fill:fill||'#c0c0d8',...(weight?{'font-weight':weight}:{})});
+    t.textContent = str;
+    return t;
+  }
+  function arrow(x1,y1,x2,y2,color) {
+    return svgEl('line',{x1,y1,x2,y2,stroke:color||'rgba(100,98,130,0.55)','stroke-width':'1.2','marker-end':'url(#arch-arrow)'});
+  }
+  function clickable(el, detail) {
+    el.style.cursor = 'pointer';
+    el.addEventListener('click', () => {
+      document.getElementById('arch-detail').textContent = detail;
+      svg.querySelectorAll('.arch-block').forEach(b => b.querySelector('rect')?.setAttribute('stroke-width','1'));
+      el.querySelector('rect')?.setAttribute('stroke-width','2.5');
+    });
+    el.addEventListener('mouseenter', () => el.querySelector('rect')?.setAttribute('opacity','0.92'));
+    el.addEventListener('mouseleave', () => el.querySelector('rect')?.setAttribute('opacity','1'));
+    el.classList.add('arch-block');
+    return el;
+  }
+
+  // ── COLUMN LAYOUT ──
+  // Stage 1: Raw table     x=14
+  // Stage 2: Encoder       x=158
+  // Stage 3: L layers      x=290–560  (3 visible layer "slabs")
+  // Stage 4: Extract       x=580
+  // Stage 5: Decode        x=700
+  // Arrows between stages
+
+  // ── STAGE 1: Raw tabular input ──
+  const tblX = 14, tblY = 130, tblW = 130, cellW = 34, cellH = 18;
+  const rows = ['train₁','train₂','train₃','query★'];
+  const cols = ['age','inc','debt','y'];
+  const vals = [['34','52k','low','✓'],['52','89k','hi','✗'],['28','31k','med','✓'],['41','68k','med','?']];
+  const isQuery = [false,false,false,true];
+
+  const tblGrp = svgEl('g',{id:'arch-rawtable'});
+  // header
+  cols.forEach((c,ci) => {
+    tblGrp.appendChild(rect(tblX + 36 + ci*cellW, tblY, cellW-1, cellH-1, '#1c1c2e','rgba(255,255,255,0.08)','0.5','2'));
+    tblGrp.appendChild(text(tblX+36+ci*cellW+cellW/2-0.5, tblY+cellH/2, c, 'IBM Plex Mono','8','#7a7890'));
+  });
+  rows.forEach((r,ri) => {
+    tblGrp.appendChild(rect(tblX, tblY+(ri+1)*cellH, 34, cellH-1, isQuery[ri]?'#201818':'#181830','rgba(255,255,255,0.06)','0.5','2'));
+    tblGrp.appendChild(text(tblX+17, tblY+(ri+1)*cellH+cellH/2, r, 'IBM Plex Mono','7', isQuery[ri]?'#e8604c':'#666688'));
+    vals[ri].forEach((v,ci) => {
+      const isY = ci===3;
+      const bg = isY ? (isQuery[ri]?'#1e1020':'#102018') : '#13131e';
+      tblGrp.appendChild(rect(tblX+36+ci*cellW, tblY+(ri+1)*cellH, cellW-1, cellH-1, bg,'rgba(255,255,255,0.05)','0.5','2'));
+      tblGrp.appendChild(text(tblX+36+ci*cellW+cellW/2-0.5, tblY+(ri+1)*cellH+cellH/2, v, 'IBM Plex Mono','8',
+        isY ? (isQuery[ri]?'rgba(160,80,80,0.7)':'#5ecb8a') : '#b0b0cc'));
+    });
+  });
+  const tblLabel = svgEl('g');
+  tblLabel.appendChild(text(tblX+tblW/2, tblY-12, 'Tabular dataset', 'DM Sans','11','rgba(160,160,200,0.6)','middle'));
+  tblLabel.appendChild(text(tblX+tblW/2, tblY-1, '(rows × features + y)', 'IBM Plex Mono','8','rgba(120,120,160,0.45)','middle'));
+  svg.appendChild(tblGrp);
+  svg.appendChild(tblLabel);
+
+  // ── STAGE 2: Encoder ──
+  const encX = 162, encY = 110, encW = 116, encH = 160;
+  const encGrp = clickable(svgEl('g'), `Encoder: Features are grouped into blocks of features_per_group (default=1 in many configs). Each group is linearly projected from raw scalar(s) to d_model dimensions. Labels y are encoded by a separate y_encoder and appended as the final feature-group token. Output shape: (batch, seq_len, num_feature_groups + 1, d_model). The "+1" is the label column.`);
+  encGrp.appendChild(rect(encX,encY,encW,encH,'#191926','#7c6af5','1','8'));
+
+  // mini token grid inside encoder block
+  const tW=22, tH=14, tPad=8;
+  ['f₁','f₂','f₃','y'].forEach((f,fi) => {
+    ['r₁','r₂','r₃','r★'].forEach((r,ri) => {
+      const tx = encX+tPad+fi*(tW+3);
+      const ty = encY+28+ri*(tH+3);
+      const isYcol = fi===3;
+      const isQrow = ri===3;
+      encGrp.appendChild(rect(tx,ty,tW,tH, isYcol?(isQrow?'#2a1525':'#122514'):(isQrow?'#201820':'#1a1a28'), isYcol?'rgba(94,203,138,0.4)':'rgba(124,106,245,0.3)','0.5','3'));
+      encGrp.appendChild(text(tx+tW/2,ty+tH/2, isYcol?(isQrow?'?':'y'):'e', 'IBM Plex Mono','7', isYcol?(isQrow?'rgba(180,80,80,0.7)':'rgba(94,203,138,0.7)'):'rgba(160,150,255,0.7)'));
+    });
+  });
+  encGrp.appendChild(text(encX+encW/2, encY+14, 'Encoder', 'DM Sans','12','#9a8af8','middle','500'));
+  encGrp.appendChild(text(encX+encW/2, encY+encH-10, '(b, s, f+1, d)', 'IBM Plex Mono','8','rgba(120,110,200,0.55)','middle'));
+  svg.appendChild(encGrp);
+  svg.appendChild(arrow(tblX+tblW+2, tblY+50, encX-2, encY+encH/2));
+
+  // ── STAGE 3: L Transformer Layers ──
+  // Draw 3 stacked slabs; each slab shows the 3 sublayers side by side
+  const layerStartX = 294, layerY0 = 50;
+  const layerW = 238, layerH = 82, layerGap = 12;
+  const numLayers = 3;
+
+  const subW = 62, subH = 46, subGap = 5, subTopPad = 20;
+
+  // Outer bracket label
+  const bracketX = layerStartX - 10;
+  svg.appendChild(svgEl('rect',{x:bracketX, y:layerY0-4, width:layerW+20, height:numLayers*(layerH+layerGap)-layerGap+8, rx:'10', fill:'none', stroke:'rgba(255,255,255,0.06)','stroke-width':'1.5','stroke-dasharray':'5 3'}));
+  svg.appendChild(text(layerStartX + layerW/2, layerY0 - 14, '× L identical layers', 'IBM Plex Mono','9','rgba(200,200,220,0.3)','middle'));
+
+  const layerDetails = [
+    `Column attention: for each row independently, all feature-group tokens, including the label slot, attend to each other. This lets features read the label on training rows and interact with each other. Followed by LayerNorm and residual connection.`,
+    `Row attention: for each feature-group position independently, tokens across rows attend to each other. For test rows, K/V are restricted to training rows (x[:, :single_eval_pos]) — no label leakage. This is the in-context learning mechanism. Followed by LayerNorm and residual.`,
+    `Feed-forward MLP: two linear layers with GELU, applied identically to every token (every (row, feature-group) cell). Followed by LayerNorm and residual. This is the same MLP-after-attention structure as in standard transformers.`,
+  ];
+  const subColors = ['#2ec4b6','#e8a623','#5ecb8a'];
+  const subLabels = ['Col\nAttn','Row\nAttn','MLP\n+LN'];
+  const subSubs   = ['features↔','rows↔','per cell'];
+
+  for (let li = 0; li < numLayers; li++) {
+    const lY = layerY0 + li*(layerH + layerGap);
+    const alpha = 1 - li*0.08;
+
+    // Layer background
+    const layBg = svgEl('rect',{x:layerStartX, y:lY, width:layerW, height:layerH, rx:'7',
+      fill:`rgba(20,20,32,${alpha})`, stroke:'rgba(255,255,255,0.06)','stroke-width':'1'});
+    svg.appendChild(layBg);
+
+    // Layer index badge
+    svg.appendChild(text(layerStartX+8, lY+10, `layer ${li+1}`, 'IBM Plex Mono','8','rgba(120,120,160,0.5)','start'));
+
+    // Three sublocks inside
+    [0,1,2].forEach(si => {
+      const sx = layerStartX + 8 + si*(subW + subGap);
+      const sy = lY + subTopPad;
+      const c = subColors[si];
+      const grp = clickable(svgEl('g'), layerDetails[si]);
+
+      grp.appendChild(rect(sx, sy, subW, subH, `rgba(20,20,30,0.9)`, c+'55','1','5'));
+      const lines = subLabels[si].split('\n');
+      grp.appendChild(text(sx+subW/2, sy+subH/2-6, lines[0], 'DM Sans','11',c,'middle','500'));
+      grp.appendChild(text(sx+subW/2, sy+subH/2+8, lines[1]||'', 'DM Sans','10',c,'middle','500'));
+      grp.appendChild(text(sx+subW/2, sy+subH-7, subSubs[si], 'IBM Plex Mono','7','rgba(160,160,180,0.5)','middle'));
+
+      // Arrow between sublocks
+      if (si < 2) {
+        svg.appendChild(arrow(sx+subW+1, sy+subH/2, sx+subW+subGap-1, sy+subH/2));
+      }
+      svg.appendChild(grp);
+    });
+
+    // Left input arrow (only first layer from encoder; others self-loop)
+    if (li === 0) {
+      svg.appendChild(arrow(encX+encW, encY+encH/2, layerStartX, lY+layerH/2));
+    } else {
+      // inter-layer arrow
+      svg.appendChild(arrow(layerStartX+layerW/2, lY-layerGap, layerStartX+layerW/2, lY+2));
+    }
+  }
+
+  // ── STAGE 4: Extract label slot ──
+  const extX = 546, extY = 130, extW = 108, extH = 120;
+  const extGrp = clickable(svgEl('g'), `Label slot extraction: after all L layers, only the test rows and only the last feature-group position (index -1, the label slot) are read out. Shape goes from (batch, seq_len, f+1, d) to (batch, n_test_rows, d). This is the only part of the transformer output used for prediction.`);
+  extGrp.appendChild(rect(extX, extY, extW, extH, '#191926','#7c6af5','1','8'));
+
+  // Token grid showing only label column lit up, test row highlighted
+  const et=20, ep=8;
+  ['r₁','r₂','r₃','r★'].forEach((r,ri) => {
+    ['f₁','f₂','y'].forEach((f,fi) => {
+      const tx2 = extX+ep+fi*(et+3), ty2 = extY+22+ri*(et/1.4+3);
+      const isYcol2 = fi===2, isQ2 = ri===3;
+      const highlight = isYcol2 && isQ2;
+      const fill2 = highlight ? '#2a0e38' : (isYcol2?'#0e1e14':'#141420');
+      const stroke2 = highlight ? '#b060f0' : (isYcol2?'rgba(94,203,138,0.2)':'rgba(100,100,160,0.15)');
+      extGrp.appendChild(rect(tx2, ty2, et-1, et/1.5, fill2, stroke2,'0.5','2'));
+      if (highlight) extGrp.appendChild(text(tx2+(et-1)/2, ty2+et/3, '→', 'IBM Plex Mono','8','#b060f0'));
+    });
+  });
+  extGrp.appendChild(text(extX+extW/2, extY+13, 'Extract', 'DM Sans','12','#a070e0','middle','500'));
+  extGrp.appendChild(text(extX+extW/2, extY+extH-18, 'label slot [-1]', 'IBM Plex Mono','8','rgba(150,100,210,0.6)','middle'));
+  extGrp.appendChild(text(extX+extW/2, extY+extH-7, 'test rows only', 'IBM Plex Mono','8','rgba(150,100,210,0.5)','middle'));
+  svg.appendChild(extGrp);
+
+  // Arrow from last layer to extract
+  const lastLY = layerY0 + (numLayers-1)*(layerH+layerGap);
+  svg.appendChild(arrow(layerStartX+layerW, lastLY+layerH/2, extX, extY+extH/2));
+
+  // ── STAGE 5a: Regression output ──
+  const decX = 668, decYreg = 108, decW = 138, decH = 100;
+  const regGrp = clickable(svgEl('g'), `Regression output (BarDistribution): the extracted label-slot embedding is passed through a linear decoder head to produce logits over N buckets. A softmax gives probabilities for each bucket — forming the Riemann/bar distribution. This is a full predictive distribution over the target value, not just a point estimate. The NLL loss is −log p(y_true | bucket).`);
+  regGrp.appendChild(rect(decX, decYreg, decW, decH, '#1a1220','#e8604c','1','8'));
+
+  // Mini bar chart
+  const barHeights = [4,7,11,18,28,22,13,8,5,3];
+  const bW = 9, bX0 = decX+8, bBase = decYreg+decH-14;
+  barHeights.forEach((h,i) => {
+    const alpha = 0.35 + (h/28)*0.65;
+    regGrp.appendChild(rect(bX0+i*(bW+2), bBase-h, bW, h, `rgba(232,96,76,${alpha})`, 'none','0','2'));
+  });
+  regGrp.appendChild(text(decX+decW/2, decYreg+13, 'Regression', 'DM Sans','12','#e8604c','middle','500'));
+  regGrp.appendChild(text(decX+decW/2, decYreg+26, 'Bar distribution', 'IBM Plex Mono','8','rgba(220,120,100,0.55)','middle'));
+  regGrp.appendChild(text(decX+decW/2, decYreg+decH-4, 'p(y) over N buckets', 'IBM Plex Mono','7','rgba(200,100,80,0.45)','middle'));
+  svg.appendChild(regGrp);
+
+  // ── STAGE 5b: Classification output ──
+  const decYcls = 228, clsH = 100;
+  const clsGrp = clickable(svgEl('g'), `Classification output (softmax): the same linear decoder head produces logits over C classes. A softmax gives class probabilities. Temperature scaling (T=0.9 default) is applied before softmax to calibrate uncertainty. The prediction is argmax of the class probabilities.`);
+  clsGrp.appendChild(rect(decX, decYcls, decW, clsH, '#181a12','#5ecb8a','1','8'));
+
+  // Mini class bars (horizontal)
+  [['class 0','✓', 0.72],['class 1','✗', 0.21],['class 2','?', 0.07]].forEach(([lbl,sym,p],i) => {
+    const barY = decYcls + 28 + i*22;
+    clsGrp.appendChild(rect(decX+8, barY, 80*p, 14, `rgba(94,203,138,${0.3+p*0.5})`, 'none','0','3'));
+    clsGrp.appendChild(text(decX+8+80*p+3, barY+7, `${(p*100).toFixed(0)}%`, 'IBM Plex Mono','7','rgba(150,220,160,0.7)','start'));
+    clsGrp.appendChild(text(decX+8, barY+7, lbl, 'IBM Plex Mono','7','rgba(130,180,140,0.5)','start'));
+  });
+  clsGrp.appendChild(text(decX+decW/2, decYcls+13, 'Classification', 'DM Sans','12','#5ecb8a','middle','500'));
+  clsGrp.appendChild(text(decX+decW/2, decYcls+26, 'Softmax over classes', 'IBM Plex Mono','8','rgba(100,180,120,0.55)','middle'));
+  svg.appendChild(clsGrp);
+
+  // Arrows from extract to both outputs
+  svg.appendChild(arrow(extX+extW, extY+extH/2-20, decX, decYreg+decH/2));
+  svg.appendChild(arrow(extX+extW, extY+extH/2+20, decX, decYcls+clsH/2));
+
+  // "or" label between arrows
+  svg.appendChild(text(decX-14, extY+extH/2+10, 'or', 'IBM Plex Mono','10','rgba(120,120,160,0.45)','middle'));
+
+  // ── Shape annotation strip at bottom ──
+  const annotY = 470;
+  const stages = [
+    {x: tblX+tblW/2,   label:'raw table'},
+    {x: encX+encW/2,   label:'(b, s, f+1, d)'},
+    {x: layerStartX+layerW/2, label:'same shape × L'},
+    {x: extX+extW/2,   label:'(b, s_test, d)'},
+    {x: decX+decW/2,   label:'p(y | x, D)'},
+  ];
+  stages.forEach(s => {
+    svg.appendChild(text(s.x, annotY, s.label, 'IBM Plex Mono','8','rgba(140,140,180,0.35)','middle'));
+  });
+}
+
+
+/* ═══════════════════════════════════════════════ */
+/* SECTION 4: BAR DISTRIBUTION                     */
+/* ═══════════════════════════════════════════════ */
+
+// All rendering is on a single canvas; we step through 4 frames.
+// Frame 0 — Build borders: show raw y-values from prior, then quantile-cut borders
+// Frame 1 — Map y→bucket: show a specific y value falling into its bucket
+// Frame 2 — Compute NLL: show softmax logits, highlight target bucket, show loss formula
+// Frame 3 — Training loop: animate multiple prior samples cycling through the procedure
+
+let bdCanvas, bdCtx;
+let bdPhase = -1;
+let bdTimer = null;
+let bdRunning = false;
+let bdLoopCount = 0;
+let bdAnimFrame = null;
+
+// Fixed bucket borders (equal-probability under a N(0,1)-like prior, normalised to [0,1])
+// Simulating what TabPFN does: choose borders so each bucket has prob 1/N under prior data
+const BD_N = 12;
+// Pre-sampled prior y values for illustration (normalised 0..1)
+const BD_PRIOR_YS = [0.12,0.19,0.27,0.31,0.38,0.44,0.47,0.52,0.55,0.59,0.63,0.68,0.72,0.77,0.81,0.86,0.91];
+// Equal-width borders for simplicity (in practice derived from prior quantiles)
+const BD_BORDERS = Array.from({length:BD_N+1},(_,i)=>i/BD_N);
+
+// A fixed set of "synthetic dataset samples" for the training loop animation
+// Each: {ys: training targets, yTest: masked query target}
+const BD_DATASETS = [
+  {ys:[0.22,0.55,0.78,0.41], yTest:0.63},
+  {ys:[0.14,0.47,0.68,0.85], yTest:0.33},
+  {ys:[0.30,0.62,0.44,0.71], yTest:0.55},
+  {ys:[0.18,0.73,0.39,0.56], yTest:0.48},
+];
+// Simulated logits for each dataset (12 buckets) — hand-crafted to look plausible
+function bdSimLogits(yTest, iteration) {
+  // Start uniform, get more peaked near yTest bucket as iteration increases
+  const target = Math.floor(yTest * BD_N);
+  const sharpness = 0.4 + iteration * 0.15;
+  const logits = BD_BORDERS.slice(0,-1).map((_,i) => {
+    const d = Math.abs(i - target);
+    return -d * sharpness + (Math.random()-0.5)*0.3;
+  });
+  return logits;
+}
+function bdSoftmax(logits) {
+  const maxL = Math.max(...logits);
+  const exps = logits.map(l => Math.exp(l - maxL));
+  const sum = exps.reduce((a,b)=>a+b,0);
+  return exps.map(e => e/sum);
+}
+function bdNLL(probs, bucketWidth, targetBucket) {
+  // NLL = -log(p_bucket / bucket_width) = -log(p_bucket) + log(bucket_width)
+  const logDensity = Math.log(Math.max(probs[targetBucket],1e-9)) - Math.log(bucketWidth);
+  return -logDensity;
+}
+
+function bdEnsureCanvas() {
+  if (bdCanvas) return;
+  bdCanvas = document.getElementById('bar-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  bdCanvas.width  = bdCanvas.offsetWidth  * dpr;
+  bdCanvas.height = 300 * dpr;
+  bdCtx = bdCanvas.getContext('2d');
+  bdCtx.scale(dpr, dpr);
+}
+
+function bdSetPip(i) {
+  for (let k=0;k<4;k++) {
+    const el = document.getElementById(`bd-pip-${k}`);
+    if (el) el.classList.toggle('active', k===i);
+  }
+}
+
+function bdCaption(html) {
+  document.getElementById('bd-caption').innerHTML = html;
+}
+
+function bdReset() {
+  clearTimeout(bdTimer);
+  if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(bdAnimFrame);
+  bdRunning = false; bdPhase = -1; bdLoopCount = 0;
+  document.getElementById('bd-play-btn').textContent = '▶ Play';
+  bdSetPip(-1);
+  bdEnsureCanvas();
+  const W = bdCanvas.offsetWidth, H = 300;
+  bdCtx.clearRect(0,0,W,H);
+  bdCaption('Press <strong>Play</strong> or <strong>Step →</strong> to begin.');
+}
+
+function bdPlay() {
+  if (bdRunning) {
+    bdRunning = false;
+    clearTimeout(bdTimer);
+    document.getElementById('bd-play-btn').textContent = '▶ Play';
+    return;
+  }
+  bdRunning = true;
+  document.getElementById('bd-play-btn').textContent = '⏸ Pause';
+  bdAdvance();
+}
+
+function bdStepOnce() {
+  bdRunning = false;
+  clearTimeout(bdTimer);
+  document.getElementById('bd-play-btn').textContent = '▶ Play';
+  bdAdvance();
+}
+
+function bdAdvance() {
+  bdPhase = (bdPhase + 1) % 4;
+  bdSetPip(bdPhase);
+  if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(bdAnimFrame);
+
+  const delays = [2800, 2800, 3200, 4000];
+  if (bdPhase === 0) bdDrawBorders();
+  else if (bdPhase === 1) bdDrawBucketMapping();
+  else if (bdPhase === 2) bdDrawNLL();
+  else if (bdPhase === 3) { bdLoopCount = 0; bdDrawTrainingLoop(); }
+
+  if (bdRunning) {
+    bdTimer = setTimeout(bdAdvance, delays[bdPhase]);
+  }
+}
+
+// ── Helper: draw the bucket grid ──────────────────────────────
+function bdDrawGrid(ctx, W, H, padL, padT, padB, plotW, plotH) {
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+  ctx.lineWidth = 0.5;
+  for (let i=1; i<=4; i++) {
+    const y = padT + plotH*(1 - i/4);
+    ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+plotW,y); ctx.stroke();
+  }
+  // x-axis
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 0.8;
+  ctx.beginPath(); ctx.moveTo(padL, padT+plotH); ctx.lineTo(padL+plotW, padT+plotH); ctx.stroke();
+}
+
+function bdDrawBorderLines(ctx, padL, padT, plotH, plotW) {
+  ctx.strokeStyle = 'rgba(124,106,245,0.35)';
+  ctx.lineWidth = 0.8;
+  ctx.setLineDash([3,3]);
+  BD_BORDERS.forEach(b => {
+    const x = padL + b * plotW;
+    ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT+plotH); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+}
+
+function bdLabel(ctx, x, y, str, size, color, align) {
+  ctx.font = `${size}px IBM Plex Mono`;
+  ctx.fillStyle = color;
+  ctx.textAlign = align || 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(str, x, y);
+}
+
+// ── Frame 0: Build borders ─────────────────────────────────────
+function bdDrawBorders() {
+  bdEnsureCanvas();
+  const W = bdCanvas.offsetWidth, H = 300;
+  const padL=50, padT=30, padB=40, padR=20;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+  bdCtx.clearRect(0,0,W,H);
+  bdDrawGrid(bdCtx, W, H, padL, padT, padB, plotW, plotH);
+
+  // Title
+  bdLabel(bdCtx, padL+plotW/2, padT-14, '① Discretise the target range into N equal-probability buckets', 11, 'rgba(160,160,220,0.7)');
+
+  // Draw a smooth "prior" density curve (Gaussian-like)
+  bdCtx.strokeStyle = 'rgba(180,160,255,0.5)';
+  bdCtx.lineWidth = 2;
+  bdCtx.beginPath();
+  for (let px=0; px<=plotW; px++) {
+    const t = px/plotW; // 0..1
+    // Bell-shaped density centered at 0.5
+    const density = Math.exp(-0.5*((t-0.5)/0.22)**2);
+    const py = padT + plotH * (1 - density*0.9);
+    if (px===0) bdCtx.moveTo(padL+px, py); else bdCtx.lineTo(padL+px, py);
+  }
+  bdCtx.stroke();
+  bdLabel(bdCtx, padL+plotW*0.5, padT+8, 'prior p(y)', 9, 'rgba(180,160,255,0.55)');
+
+  // Animate borders appearing one by one
+  let shown = 0;
+  function showNext() {
+    if (shown > BD_N) return;
+    const b = BD_BORDERS[shown];
+    const x = padL + b * plotW;
+    bdCtx.strokeStyle = 'rgba(124,106,245,0.7)';
+    bdCtx.lineWidth = 1.2;
+    bdCtx.beginPath(); bdCtx.moveTo(x, padT); bdCtx.lineTo(x, padT+plotH); bdCtx.stroke();
+    // Label bucket number
+    if (shown < BD_N) {
+      const cx = padL + (b + 0.5/BD_N)*plotW;
+      bdLabel(bdCtx, cx, padT+plotH-12, String(shown+1), 8, 'rgba(120,110,200,0.6)');
+    }
+    // Shade alternating buckets faintly
+    if (shown < BD_N) {
+      bdCtx.fillStyle = shown%2===0 ? 'rgba(124,106,245,0.05)' : 'rgba(46,196,182,0.04)';
+      bdCtx.fillRect(padL+b*plotW, padT, plotW/BD_N, plotH);
+    }
+    shown++;
+    if (shown <= BD_N) setTimeout(showNext, 120);
+  }
+  showNext();
+
+  // x-axis labels
+  [0, 0.25, 0.5, 0.75, 1.0].forEach(v => {
+    bdLabel(bdCtx, padL+v*plotW, padT+plotH+18, v.toFixed(2), 9, 'rgba(140,140,180,0.5)');
+  });
+  bdLabel(bdCtx, padL+plotW/2, H-8, 'target y (normalised to 0–1)', 9, 'rgba(120,120,160,0.4)');
+
+  bdCaption(`<strong style="color:var(--accent)">Step 1 — Build borders.</strong> The target range is split into N=${BD_N} buckets. Borders are chosen so each bucket has <em>equal probability under the prior</em> (1/N each) — derived from quantiles of a large prior-data sample. This is what makes the softmax loss well-calibrated: all classes start equally likely before any data is seen.`);
+}
+
+// ── Frame 1: Map y → bucket ────────────────────────────────────
+function bdDrawBucketMapping() {
+  bdEnsureCanvas();
+  const W = bdCanvas.offsetWidth, H = 300;
+  const padL=50, padT=40, padB=40, padR=20;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+  bdCtx.clearRect(0,0,W,H);
+  bdDrawGrid(bdCtx, W, H, padL, padT, padB, plotW, plotH);
+  bdDrawBorderLines(bdCtx, padL, padT, plotH, plotW);
+
+  bdLabel(bdCtx, padL+plotW/2, padT-18, '② A continuous y is mapped to its bucket index — regression becomes classification', 11, 'rgba(160,160,220,0.7)');
+
+  // Draw flat uniform-looking bars
+  const bW = plotW / BD_N;
+  BD_BORDERS.slice(0,-1).forEach((_,i) => {
+    const x = padL + i*bW;
+    bdCtx.fillStyle = 'rgba(60,60,100,0.35)';
+    bdCtx.fillRect(x+1, padT, bW-2, plotH);
+  });
+
+  // Example y value
+  const yVal = 0.63;
+  const targetBucket = Math.floor(yVal * BD_N);
+  const bucketLeft = padL + targetBucket * bW;
+  const yX = padL + yVal * plotW;
+
+  // Animate: first show y as a falling dot, then highlight its bucket
+  let t = 0;
+  function animFall() {
+    bdCtx.clearRect(0,0,W,H);
+    bdDrawGrid(bdCtx, W, H, padL, padT, padB, plotW, plotH);
+    bdDrawBorderLines(bdCtx, padL, padT, plotH, plotW);
+
+    // Bars
+    BD_BORDERS.slice(0,-1).forEach((_,i) => {
+      const x = padL + i*bW;
+      const isTarget = i === targetBucket;
+      const progress = Math.min(1, (t - 0.4) / 0.4);
+      bdCtx.fillStyle = isTarget && t > 0.4 ? `rgba(232,166,35,${0.15 + progress*0.45})` : 'rgba(60,60,100,0.35)';
+      bdCtx.fillRect(x+1, padT, bW-2, plotH);
+      // Bucket index label
+      bdLabel(bdCtx, x+bW/2, padT+plotH-10, String(i+1), 8, 'rgba(120,110,200,0.5)');
+    });
+
+    // Falling dot
+    const dotY = padT + Math.min(t, 0.5) / 0.5 * plotH;
+    const dotX = yX;
+    bdCtx.beginPath();
+    bdCtx.arc(dotX, dotY, 5, 0, Math.PI*2);
+    bdCtx.fillStyle = 'rgba(232,96,76,0.9)';
+    bdCtx.fill();
+
+    // y= label on dot
+    if (t < 0.5) {
+      bdLabel(bdCtx, dotX+18, dotY, `y = ${yVal}`, 10, 'rgba(232,96,76,0.85)', 'left');
+    }
+
+    // After dot lands, show bucket highlight and arrow
+    if (t >= 0.5) {
+      // Bucket outline
+      bdCtx.strokeStyle = 'rgba(232,166,35,0.9)';
+      bdCtx.lineWidth = 2;
+      bdCtx.strokeRect(bucketLeft+1, padT, bW-2, plotH);
+
+      // Arrow from y→bucket
+      bdCtx.strokeStyle = 'rgba(232,96,76,0.6)';
+      bdCtx.lineWidth = 1;
+      bdCtx.setLineDash([3,2]);
+      bdCtx.beginPath();
+      bdCtx.moveTo(yX, padT+plotH);
+      bdCtx.lineTo(yX, padT+plotH+12);
+      bdCtx.stroke();
+      bdCtx.setLineDash([]);
+
+      bdLabel(bdCtx, bucketLeft+bW/2, padT+plotH+20, `bucket ${targetBucket+1}`, 10, 'rgba(232,166,35,0.85)');
+      bdLabel(bdCtx, yX, padT+plotH+20, `y=${yVal}`, 9, 'rgba(232,96,76,0.7)');
+
+      // searchsorted formula
+      bdLabel(bdCtx, padL+plotW/2, padT-6, `searchsorted(borders, y=${yVal}) − 1  =  bucket ${targetBucket+1}`, 10, 'rgba(200,180,255,0.7)');
+    }
+
+    // x-axis
+    [0, 0.25, 0.5, 0.75, 1.0].forEach(v => {
+      bdLabel(bdCtx, padL+v*plotW, padT+plotH+18, v.toFixed(2), 9, 'rgba(140,140,180,0.5)');
+    });
+    bdLabel(bdCtx, padL+plotW/2, H-6, 'target y (normalised)', 9, 'rgba(120,120,160,0.4)');
+    bdLabel(bdCtx, padL+plotW/2, padT-22, '② A continuous y is mapped to its bucket index — regression becomes classification', 11, 'rgba(160,160,220,0.7)');
+
+    t += 0.018;
+    if (t < 1.2 && bdPhase === 1) bdAnimFrame = (typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame : setTimeout)(animFall);
+  }
+  animFall();
+
+  bdCaption(`<strong style="color:var(--amber)">Step 2 — Map y → bucket.</strong> A continuous target value (e.g. <code>y = ${yVal}</code>) is mapped to its bucket index. The regression problem is now a classification problem: which of the N buckets does the true target fall in? The model's output is a softmax over all N buckets.`);
+}
+
+// ── Frame 2: Compute NLL loss ──────────────────────────────────
+function bdDrawNLL() {
+  bdEnsureCanvas();
+  const W = bdCanvas.offsetWidth, H = 300;
+  const padL=50, padT=45, padB=50, padR=20;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+  bdCtx.clearRect(0,0,W,H);
+
+  const yVal = 0.63;
+  const targetBucket = Math.floor(yVal * BD_N);
+  const logits = bdSimLogits(yVal, 3);
+  const probs = bdSoftmax(logits);
+  const bW = plotW / BD_N;
+  const bucketWidth = 1/BD_N;
+  const nll = bdNLL(probs, bucketWidth, targetBucket);
+
+  bdLabel(bdCtx, padL+plotW/2, padT-26, '③ NLL loss = −log p(bucket_k) + log(bucket_width)', 11, 'rgba(160,160,220,0.7)');
+  bdLabel(bdCtx, padL+plotW/2, padT-12, 'This is a density NLL — scaled so uniform = 0, not −log(1/N)', 9, 'rgba(120,120,160,0.5)');
+
+  bdDrawGrid(bdCtx, W, H, padL, padT, padB, plotW, plotH);
+  bdDrawBorderLines(bdCtx, padL, padT, plotH, plotW);
+
+  const maxP = Math.max(...probs);
+
+  let t = 0;
+  function animNLL() {
+    bdCtx.clearRect(padL, padT, plotW, plotH);
+    bdDrawGrid(bdCtx, W, H, padL, padT, padB, plotW, plotH);
+    bdDrawBorderLines(bdCtx, padL, padT, plotH, plotW);
+
+    const progress = Math.min(1, t / 0.6);
+
+    probs.forEach((p, i) => {
+      const x = padL + i*bW;
+      const h = (p / maxP) * plotH * progress;
+      const y = padT + plotH - h;
+      const isTarget = i === targetBucket;
+
+      // Bar fill
+      bdCtx.fillStyle = isTarget ? `rgba(232,166,35,0.8)` : `rgba(100,90,180,0.45)`;
+      bdCtx.fillRect(x+1, y, bW-2, h);
+
+      // Border on target
+      if (isTarget) {
+        bdCtx.strokeStyle = 'rgba(232,166,35,1)';
+        bdCtx.lineWidth = 2;
+        bdCtx.strokeRect(x+1, y, bW-2, h);
+      }
+
+      // p value above bar
+      if (progress > 0.8) {
+        bdLabel(bdCtx, x+bW/2, y-8, `${(p*100).toFixed(0)}%`, 7,
+          isTarget ? 'rgba(232,166,35,0.9)' : 'rgba(140,130,200,0.5)');
+      }
+    });
+
+    // True y line
+    const yX = padL + yVal * plotW;
+    bdCtx.strokeStyle = 'rgba(232,96,76,0.8)';
+    bdCtx.lineWidth = 1.5;
+    bdCtx.setLineDash([4,3]);
+    bdCtx.beginPath(); bdCtx.moveTo(yX, padT); bdCtx.lineTo(yX, padT+plotH); bdCtx.stroke();
+    bdCtx.setLineDash([]);
+
+    if (progress > 0.9) {
+      // Annotate the target bucket probability
+      const tx = padL + targetBucket*bW;
+      const tp = probs[targetBucket];
+      const ty = padT + plotH*(1 - tp/maxP) - 20;
+      bdCtx.strokeStyle = 'rgba(232,166,35,0.6)';
+      bdCtx.lineWidth = 1;
+      bdCtx.beginPath(); bdCtx.moveTo(tx+bW/2, ty+8); bdCtx.lineTo(tx+bW/2, ty+20); bdCtx.stroke();
+      bdLabel(bdCtx, tx+bW/2, ty-4, `p_k = ${(tp*100).toFixed(1)}%`, 10, 'rgba(232,166,35,0.95)');
+
+      // Loss formula
+      const fw = 260;
+      const fx = padL + plotW - fw - 5, fy = padT + 14;
+      bdCtx.fillStyle = 'rgba(15,15,25,0.88)';
+      bdCtx.roundRect(fx, fy, fw, 60, 6);
+      bdCtx.fill();
+      bdLabel(bdCtx, fx+fw/2, fy+12, 'NLL = −log p_k + log(Δ)', 11, 'rgba(200,190,255,0.85)');
+      bdLabel(bdCtx, fx+fw/2, fy+28, `= −log(${(tp).toFixed(3)}) + log(${bucketWidth.toFixed(3)})`, 10, 'rgba(170,160,230,0.7)');
+      bdLabel(bdCtx, fx+fw/2, fy+44, `= ${nll.toFixed(3)}   (lower = better)`, 11, 'rgba(94,203,138,0.85)');
+    }
+
+    // X axis
+    [0, 0.25, 0.5, 0.75, 1.0].forEach(v => {
+      bdLabel(bdCtx, padL+v*plotW, padT+plotH+18, v.toFixed(2), 9, 'rgba(140,140,180,0.5)');
+    });
+    bdLabel(bdCtx, padL+plotW/2, H-4, 'target y (normalised)', 9, 'rgba(120,120,160,0.4)');
+
+    t += 0.015;
+    if (t < 2.5 && bdPhase === 2) bdAnimFrame = (typeof requestAnimationFrame !== "undefined" ? requestAnimationFrame : setTimeout)(animNLL);
+  }
+  animNLL();
+
+  bdCaption(`<strong style="color:var(--teal)">Step 3 — Compute NLL loss.</strong>  The model outputs logits → softmax → probabilities over N buckets. The loss for a training example is:<br><code>NLL = −log p<sub>k</sub> + log(Δ)</code>  where k is the target bucket and Δ is the bucket width. The <code>+log(Δ)</code> converts categorical CE into a proper <em>density</em> NLL — a uniform distribution over [0,1] gives loss = 0, not log(N).`);
+}
+
+// ── Frame 3: Training loop ─────────────────────────────────────
+function bdDrawTrainingLoop() {
+  bdEnsureCanvas();
+  const W = bdCanvas.offsetWidth, H = 300;
+  const padL=50, padT=45, padB=50, padR=20;
+  const plotW = W-padL-padR, plotH = H-padT-padB;
+
+  const dsIdx = bdLoopCount % BD_DATASETS.length;
+  const ds = BD_DATASETS[dsIdx];
+  const iteration = Math.floor(bdLoopCount / BD_DATASETS.length);
+  const logits = bdSimLogits(ds.yTest, iteration);
+  const probs = bdSoftmax(logits);
+  const targetBucket = Math.floor(ds.yTest * BD_N);
+  const nll = bdNLL(probs, 1/BD_N, targetBucket);
+  const bW = plotW / BD_N;
+  const maxP = Math.max(...probs);
+
+  bdCtx.clearRect(0,0,W,H);
+  bdDrawGrid(bdCtx, W, H, padL, padT, padB, plotW, plotH);
+  bdDrawBorderLines(bdCtx, padL, padT, plotH, plotW);
+
+  // Title
+  bdLabel(bdCtx, padL+plotW/2, padT-28, '④ Training loop (PFN paper §3): sample D from prior, mask y_test, minimise NLL', 11, 'rgba(160,160,220,0.7)');
+  bdLabel(bdCtx, padL+plotW/2, padT-14, `Iteration ${bdLoopCount+1}  |  dataset sample ${dsIdx+1}  |  y_test = ${ds.yTest}`, 9, 'rgba(120,120,160,0.55)');
+
+  // Draw training context points as small dots
+  ds.ys.forEach((y,i) => {
+    const x = padL + y*plotW;
+    bdCtx.beginPath(); bdCtx.arc(x, padT+plotH+28, 4, 0, Math.PI*2);
+    bdCtx.fillStyle = 'rgba(124,106,245,0.7)'; bdCtx.fill();
+    bdLabel(bdCtx, x, padT+plotH+42, y.toFixed(2), 7, 'rgba(124,106,245,0.55)');
+  });
+  bdLabel(bdCtx, padL-2, padT+plotH+28, 'D_train:', 8, 'rgba(124,106,245,0.6)', 'right');
+
+  // Draw masked test point
+  const testX = padL + ds.yTest*plotW;
+  bdCtx.beginPath(); bdCtx.arc(testX, padT+plotH+28, 5, 0, Math.PI*2);
+  bdCtx.fillStyle = 'rgba(232,96,76,0)'; bdCtx.fill();
+  bdCtx.strokeStyle = 'rgba(232,96,76,0.85)'; bdCtx.lineWidth = 1.5; bdCtx.stroke();
+  bdLabel(bdCtx, testX, padT+plotH+42, '?', 9, 'rgba(232,96,76,0.8)');
+  bdLabel(bdCtx, padL-2, padT+plotH+42, 'y_test:', 8, 'rgba(232,96,76,0.6)', 'right');
+
+  // Draw probability bars (current model output)
+  probs.forEach((p, i) => {
+    const x = padL + i*bW;
+    const h = (p/maxP)*plotH;
+    const y = padT + plotH - h;
+    const isTarget = i === targetBucket;
+    bdCtx.fillStyle = isTarget ? 'rgba(232,166,35,0.75)' : 'rgba(90,80,160,0.4)';
+    bdCtx.fillRect(x+1, y, bW-2, h);
+    if (isTarget) {
+      bdCtx.strokeStyle = 'rgba(232,166,35,0.9)'; bdCtx.lineWidth = 1.5;
+      bdCtx.strokeRect(x+1, y, bW-2, h);
+    }
+  });
+
+  // True y line
+  bdCtx.strokeStyle = 'rgba(232,96,76,0.75)'; bdCtx.lineWidth = 1.5;
+  bdCtx.setLineDash([4,3]);
+  bdCtx.beginPath(); bdCtx.moveTo(testX,padT); bdCtx.lineTo(testX,padT+plotH); bdCtx.stroke();
+  bdCtx.setLineDash([]);
+
+  // Loss box
+  const tp = probs[targetBucket];
+  const fw = 210, fx = padL+plotW-fw-5, fy = padT+10;
+  bdCtx.fillStyle = 'rgba(12,12,24,0.9)';
+  bdCtx.roundRect ? bdCtx.roundRect(fx,fy,fw,44,5) : bdCtx.fillRect(fx,fy,fw,44);
+  bdCtx.fill();
+  bdLabel(bdCtx, fx+fw/2, fy+12, `NLL = ${nll.toFixed(3)}`, 12, 'rgba(94,203,138,0.9)');
+  bdLabel(bdCtx, fx+fw/2, fy+30, `p(bucket ${targetBucket+1}) = ${(tp*100).toFixed(1)}%`, 9, 'rgba(170,160,230,0.7)');
+
+  // X axis labels
+  [0, 0.25, 0.5, 0.75, 1.0].forEach(v => {
+    bdLabel(bdCtx, padL+v*plotW, padT+plotH+15, v.toFixed(2), 9, 'rgba(140,140,180,0.5)');
+  });
+
+  bdCaption(`<strong style="color:var(--green)">Step 4 — Training loop.</strong> Per the PFN paper: sample a dataset D from the prior, mask one label y<sub>test</sub> (shown as ○), feed D and a query to the model, get logits over N buckets, compute <code>NLL = −log p<sub>k</sub> + log(Δ)</code>. Minimising this loss (§3, Insight 1) makes the model approximate the true Bayesian posterior predictive distribution. Over many iterations the histogram sharpens around the true target.`);
+
+  bdLoopCount++;
+  if (bdRunning) {
+    bdTimer = setTimeout(() => {
+      bdSetPip(3);
+      bdDrawTrainingLoop();
+    }, 1800);
+  }
+}
+
+function initBarDist() {
+  bdEnsureCanvas();
+  bdReset();
+}
+
+
+/* ═══════════════════════════════════════════════ */
+/* SECTION 5: WHAT THE MODEL LEARNS               */
+/* ═══════════════════════════════════════════════ */
+
+// The illustration has two phases played in a loop:
+//
+// PHASE A — TRAINING (left 60% of canvas)
+//   A stream of diverse synthetic datasets flows in from the left.
+//   Each dataset has a different statistical "fingerprint" (shown as a
+//   mini scatter). For each, the true PPD is shown (a histogram).
+//   An arrow feeds into the model weights box.
+//   A counter "datasets seen" increments rapidly.
+//
+// PHASE B — INFERENCE (right 40% of canvas, after training)
+//   A new real dataset arrives.
+//   The model reads it (attention lines animate briefly).
+//   The correct PPD for that dataset's structure emerges — no retraining.
+//   Caption: "Same weights. Different dataset. Correct posterior."
+//
+// The central visual metaphor: the weights are not a database —
+// they are a compressed function from "dataset fingerprint" to "posterior".
+
+let learnCanvas, lCtx;
+let learnTimer = null;
+let learnRunning = false;
+let learnT = 0;         // global animation time (frames)
+let learnPhase = 0;     // 0=training, 1=inference
+let learnRaf = null;
+
+// Diverse synthetic datasets: each has scatter points and a PPD shape
+const LEARN_DATASETS = [
+  {
+    label: 'linear + low noise',
+    color: '#7c6af5',
+    pts: [{x:.15,y:.18},{x:.28,y:.32},{x:.4,y:.45},{x:.55,y:.58},{x:.68,y:.70},{x:.80,y:.83}],
+    ppd: [.02,.04,.06,.12,.22,.30,.24,.16,.09,.04,.02,.01],  // concentrated, skewed right
+  },
+  {
+    label: 'noisy / high variance',
+    color: '#e8a623',
+    pts: [{x:.12,y:.72},{x:.3,y:.2},{x:.5,y:.6},{x:.65,y:.15},{x:.78,y:.8},{x:.9,y:.45}],
+    ppd: [.07,.09,.10,.10,.11,.12,.11,.10,.10,.09,.07,.04],  // nearly uniform — high uncertainty
+  },
+  {
+    label: 'nonlinear / U-shaped',
+    color: '#2ec4b6',
+    pts: [{x:.1,y:.75},{x:.25,y:.4},{x:.4,y:.18},{x:.55,y:.15},{x:.7,y:.38},{x:.85,y:.72}],
+    ppd: [.02,.04,.09,.14,.20,.24,.17,.09,.05,.04,.03,.02],
+  },
+  {
+    label: 'sparse / few examples',
+    color: '#5ecb8a',
+    pts: [{x:.3,y:.4},{x:.65,y:.55}],
+    ppd: [.05,.07,.09,.11,.13,.14,.13,.11,.09,.07,.05,.04],  // wide, uncertain
+  },
+  {
+    label: 'tight cluster',
+    color: '#e8604c',
+    pts: [{x:.48,y:.52},{x:.5,y:.48},{x:.52,y:.5},{x:.49,y:.51},{x:.51,y:.49}],
+    ppd: [.01,.02,.04,.10,.24,.36,.28,.14,.06,.02,.01,.00],  // very peaked
+  },
+];
+
+// Inference-time dataset (arrives after training)
+const INFER_DATASET = {
+  label: 'new unseen dataset',
+  color: '#ffffff',
+  pts: [{x:.2,y:.3},{x:.35,y:.48},{x:.5,y:.62},{x:.65,y:.74},{x:.8,y:.88}],
+  ppd: [.01,.03,.07,.15,.25,.28,.22,.13,.07,.03,.01,.00],
+};
+
+function learnReset() {
+  clearTimeout(learnTimer);
+  if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(learnRaf);
+  learnRunning = false; learnT = 0; learnPhase = 0;
+  document.getElementById('learn-play-btn').textContent = '▶ Play';
+  learnEnsureCanvas();
+  lCtx.clearRect(0, 0, learnCanvas.offsetWidth, 360);
+  document.getElementById('learn-caption').innerHTML =
+    'Press <strong>Play</strong> to see how the model learns to perform Bayesian inference.';
+}
+
+function learnPlay() {
+  if (learnRunning) {
+    learnRunning = false;
+    clearTimeout(learnTimer);
+    if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(learnRaf);
+    document.getElementById('learn-play-btn').textContent = '▶ Play';
+    return;
+  }
+  learnRunning = true;
+  document.getElementById('learn-play-btn').textContent = '⏸ Pause';
+  learnEnsureCanvas();
+  learnAnimate();
+}
+
+function learnEnsureCanvas() {
+  if (learnCanvas) return;
+  learnCanvas = document.getElementById('learn-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  learnCanvas.width  = learnCanvas.offsetWidth * dpr;
+  learnCanvas.height = 360 * dpr;
+  lCtx = learnCanvas.getContext('2d');
+  lCtx.scale(dpr, dpr);
+}
+
+function learnAnimate() {
+  if (!learnRunning) return;
+  learnDraw(learnT);
+  learnT++;
+  // Full loop: 0-299 = training (5 datasets × 60 frames each), 300-499 = inference
+  if (learnT >= 500) learnT = 0;
+  // Run at ~12 fps (80ms per frame) so the animation is readable
+  learnRaf = setTimeout(learnAnimate, 80);
+}
+
+// Step boundaries: ds1..ds5 (training) then inference, then loop
+// Each training dataset occupies 60 frames; inference occupies frames 300-499
+const LEARN_STEPS = [0, 60, 120, 180, 240, 300];
+function learnStep() {
+  learnRunning = false;
+  clearTimeout(learnTimer);
+  clearTimeout(learnRaf);
+  document.getElementById('learn-play-btn').textContent = '▶ Play';
+  learnEnsureCanvas();
+  // Jump to next boundary strictly after current t, or wrap back to 0
+  const next = LEARN_STEPS.find(s => s > learnT);
+  learnT = next !== undefined ? next : 0;
+  learnDraw(learnT);
+}
+
+function lLabel(x, y, str, size, color, align, baseline) {
+  lCtx.font = `${size}px IBM Plex Mono`;
+  lCtx.fillStyle = color;
+  lCtx.textAlign = align || 'center';
+  lCtx.textBaseline = baseline || 'middle';
+  lCtx.fillText(str, x, y);
+}
+function lSans(x, y, str, size, color, align, weight) {
+  lCtx.font = `${weight||'400'} ${size}px DM Sans`;
+  lCtx.fillStyle = color;
+  lCtx.textAlign = align || 'center';
+  lCtx.textBaseline = 'middle';
+  lCtx.fillText(str, x, y);
+}
+
+// Draw a mini scatter plot in a bounding box
+function lDrawScatter(pts, col, bx, by, bw, bh, alpha) {
+  lCtx.save();
+  lCtx.globalAlpha = alpha || 1;
+  // Background
+  lCtx.fillStyle = 'rgba(20,20,32,0.7)';
+  lCtx.beginPath(); lCtx.roundRect ? lCtx.roundRect(bx,by,bw,bh,4) : lCtx.rect(bx,by,bw,bh); lCtx.fill();
+  lCtx.strokeStyle = `${col}55`; lCtx.lineWidth = 1;
+  lCtx.beginPath(); lCtx.roundRect ? lCtx.roundRect(bx,by,bw,bh,4) : lCtx.rect(bx,by,bw,bh); lCtx.stroke();
+  // Points
+  pts.forEach(p => {
+    lCtx.beginPath();
+    lCtx.arc(bx + p.x*bw, by + (1-p.y)*bh, 2.5, 0, Math.PI*2);
+    lCtx.fillStyle = col; lCtx.fill();
+  });
+  lCtx.restore();
+}
+
+// Draw a mini PPD histogram in a bounding box
+function lDrawPPD(ppd, col, bx, by, bw, bh, alpha, highlight) {
+  const N = ppd.length;
+  const maxP = Math.max(...ppd);
+  lCtx.save();
+  lCtx.globalAlpha = alpha || 1;
+  lCtx.fillStyle = 'rgba(20,20,32,0.7)';
+  lCtx.beginPath(); lCtx.roundRect ? lCtx.roundRect(bx,by,bw,bh,4) : lCtx.rect(bx,by,bw,bh); lCtx.fill();
+  ppd.forEach((p, i) => {
+    const bW = bw / N;
+    const h = (p / maxP) * (bh - 6);
+    const x = bx + i * bW;
+    const y = by + bh - h - 3;
+    lCtx.fillStyle = highlight ? `${col}cc` : `${col}88`;
+    lCtx.fillRect(x+0.5, y, bW-1, h);
+  });
+  lCtx.strokeStyle = `${col}55`; lCtx.lineWidth = 1;
+  lCtx.beginPath(); lCtx.roundRect ? lCtx.roundRect(bx,by,bw,bh,4) : lCtx.rect(bx,by,bw,bh); lCtx.stroke();
+  lCtx.restore();
+}
+
+// Draw the model weights box (centre)
+function lDrawWeights(W, H, pulse) {
+  const cx = W * 0.6, cy = H * 0.5;
+  const bw = 110, bh = 130;
+  const bx = cx - bw/2, by = cy - bh/2;
+
+  lCtx.save();
+  lCtx.shadowColor = `rgba(124,106,245,${0.15 + pulse*0.25})`;
+  lCtx.shadowBlur = 18 + pulse * 14;
+  lCtx.fillStyle = 'rgba(22,18,48,0.92)';
+  lCtx.beginPath(); lCtx.roundRect ? lCtx.roundRect(bx,by,bw,bh,8) : lCtx.rect(bx,by,bw,bh); lCtx.fill();
+  lCtx.strokeStyle = `rgba(124,106,245,${0.45 + pulse*0.35})`; lCtx.lineWidth = 1.5;
+  lCtx.beginPath(); lCtx.roundRect ? lCtx.roundRect(bx,by,bw,bh,8) : lCtx.rect(bx,by,bw,bh); lCtx.stroke();
+  lCtx.restore();
+
+  lSans(cx, by+18, 'Model weights', 11, 'rgba(160,150,255,0.85)', 'center', '500');
+  lSans(cx, by+32, 'θ', 18, `rgba(140,120,255,${0.5+pulse*0.35})`, 'center', '500');
+
+  // Draw stylised weight nodes
+  const rows = [[0.25,0.5,0.75], [0.33,0.67], [0.5]];
+  const nodeY = [by+54, by+82, by+108];
+  const nodeR = 4;
+  rows.forEach((cols_, ri) => {
+    cols_.forEach(cx_ => {
+      const nx = bx + cx_*bw, ny = nodeY[ri];
+      lCtx.beginPath(); lCtx.arc(nx, ny, nodeR, 0, Math.PI*2);
+      lCtx.fillStyle = `rgba(124,106,245,${0.3+pulse*0.3})`; lCtx.fill();
+      // connect to next row
+      if (ri < rows.length-1) {
+        rows[ri+1].forEach(nc => {
+          const nx2 = bx+nc*bw, ny2=nodeY[ri+1];
+          lCtx.beginPath(); lCtx.moveTo(nx,ny); lCtx.lineTo(nx2,ny2);
+          lCtx.strokeStyle = `rgba(124,106,245,${0.12+pulse*0.08})`; lCtx.lineWidth=0.7; lCtx.stroke();
+        });
+      }
+    });
+  });
+
+  // Inside label
+  lLabel(cx, by+bh-12, 'not data — an algorithm', 8, 'rgba(160,150,255,0.4)', 'center');
+
+  return {bx, by, bw, bh, cx, cy};
+}
+
+function learnDraw(t) {
+  const W = learnCanvas.offsetWidth, H = 360;
+  lCtx.clearRect(0, 0, W, H);
+
+  // Background
+  lCtx.fillStyle = 'rgba(14,14,20,1)';
+  lCtx.fillRect(0, 0, W, H);
+
+  const isTraining = t < 300;
+  const isInference = t >= 300;
+  const trainT = t;           // 0..299
+  const inferT = t - 300;     // 0..199
+
+  // ── TRAINING PHASE ─────────────────────────────────────────────
+  if (isTraining) {
+    // Dataset index cycles every 50 frames
+    const dsIdx = Math.floor(trainT / 60) % LEARN_DATASETS.length;
+    const dsProgress = (trainT % 60) / 60;   // 0..1 within this dataset
+    const ds = LEARN_DATASETS[dsIdx];
+    const totalSeen = dsIdx * 26_000_000;    // ~130M / 5 datasets
+
+    // Section label
+    lSans(W*0.3, 18, 'Training phase', 12, 'rgba(200,190,255,0.55)', 'center', '500');
+
+    // Dataset count
+    const count = Math.floor((trainT / 300) * 130) + 'M';
+    lLabel(W*0.3, H-12, `datasets seen: ~${Math.floor(trainT/300*130)}M / 130M`, 9, 'rgba(140,130,200,0.45)', 'center');
+
+    // ── Incoming dataset (left side) ──
+    const dsAlpha = Math.min(1, dsProgress * 4);
+    const slideX = Math.max(0, (1 - dsProgress*2)) * (-80);  // slides in from left
+    const sW = 100, sH = 70;
+    const sX = 20 + slideX, sY = H/2 - sH/2 - 40;
+
+    lDrawScatter(ds.pts, ds.color, sX, sY, sW, sH, dsAlpha);
+    lSans(sX + sW/2, sY - 12, ds.label, 9, `${ds.color}cc`, 'center');
+    lSans(sX + sW/2, sY + sH + 10, 'D ~ p(D)', 9, 'rgba(140,130,200,0.55)', 'center');
+
+    // ── Arrow: dataset → weights ──
+    const arrowProgress = Math.min(1, (dsProgress - 0.15) / 0.4);
+    if (arrowProgress > 0) {
+      const ax1 = sX + sW + 4, ay1 = sY + sH/2;
+      const ax2 = W*0.6 - 58, ay2 = H/2;
+      const ax = ax1 + (ax2-ax1)*arrowProgress;
+      const ay = ay1 + (ay2-ay1)*arrowProgress;
+
+      // Dashed arrow
+      lCtx.strokeStyle = `${ds.color}88`;
+      lCtx.lineWidth = 1.2;
+      lCtx.setLineDash([4,3]);
+      lCtx.beginPath(); lCtx.moveTo(ax1, ay1); lCtx.lineTo(ax, ay); lCtx.stroke();
+      lCtx.setLineDash([]);
+
+      // Moving dot
+      lCtx.beginPath(); lCtx.arc(ax, ay, 3.5, 0, Math.PI*2);
+      lCtx.fillStyle = ds.color; lCtx.fill();
+    }
+
+    // ── PPD for this dataset (between scatter and weights) ──
+    const ppdAlpha = Math.min(1, Math.max(0, (dsProgress - 0.3) / 0.3));
+    const pW = 90, pH = 55;
+    const pX = 20 + slideX, pY = sY + sH + 30;
+    lDrawPPD(ds.ppd, ds.color, pX, pY, pW, pH, ppdAlpha, true);
+    if (ppdAlpha > 0.5) {
+      lSans(pX + pW/2, pY - 10, 'true PPD', 8, `${ds.color}99`, 'center');
+      lSans(pX + pW/2, pY + pH + 8, 'p(y|x,D)', 8, 'rgba(140,130,200,0.45)', 'center');
+    }
+
+    // ── Weights box ──
+    const pulse = Math.sin(dsProgress * Math.PI * 2) * 0.5 + 0.5;
+    lDrawWeights(W, H, pulse * 0.4);
+
+    // ── NLL arrow + loss value ──
+    const lossAlpha = Math.min(1, Math.max(0, (dsProgress - 0.5) / 0.25));
+    if (lossAlpha > 0) {
+      const lossVal = (2.8 - (trainT/300)*1.6 + (Math.random()-0.5)*0.1).toFixed(3);
+      const lx = W*0.6 - 5, ly = H*0.5 - 65;
+      lSans(lx, ly, `NLL = ${lossVal}`, 10, `rgba(94,203,138,${lossAlpha*0.9})`, 'center');
+      lSans(lx, ly+14, '↓ gradient step', 8, `rgba(94,203,138,${lossAlpha*0.6})`, 'center');
+    }
+
+    // Caption update
+    if (t % 60 === 0) {
+      document.getElementById('learn-caption').innerHTML =
+        `<strong style="color:var(--accent)">Training — dataset ${dsIdx+1}/${LEARN_DATASETS.length} (cycle).</strong> ` +
+        `The model sees "<em>${ds.label}</em>" and minimises NLL of the masked label. ` +
+        `By Insight 1 of the PFN paper, this equals KL(true PPD ‖ model output). The weights learn a general mapping: <em>dataset structure → posterior shape</em>.`;
+    }
+  }
+
+  // ── INFERENCE PHASE ───────────────────────────────────────────
+  if (isInference) {
+    const inf = Math.min(1, inferT / 180);  // 0..1 over 180 frames
+    const ds = INFER_DATASET;
+
+    lSans(W/2, 18, 'Inference — no retraining', 12, 'rgba(200,220,200,0.6)', 'center', '500');
+
+    // ── Weights (now trained, no pulse) ──
+    const wb = lDrawWeights(W, H, 0.0);
+
+    // ── New dataset arrives on left ──
+    const arriveAlpha = Math.min(1, inf * 3);
+    const sW = 100, sH = 70;
+    const sX = 20, sY = H/2 - sH/2;
+    lDrawScatter(ds.pts, '#e8e6f0', sX, sY, sW, sH, arriveAlpha);
+    lSans(sX + sW/2, sY - 12, 'new dataset', 9, `rgba(232,230,240,${arriveAlpha*0.8})`, 'center');
+    lSans(sX + sW/2, sY + sH + 10, 'D_new  (never seen)', 8, 'rgba(150,150,180,0.5)', 'center');
+
+    // ── Attention lines: dataset → weights ──
+    const attnAlpha = Math.min(1, Math.max(0, (inf - 0.2) / 0.3));
+    if (attnAlpha > 0) {
+      ds.pts.forEach((p, pi) => {
+        const px = sX + p.x*sW;
+        const py = sY + (1-p.y)*sH;
+        const tx = wb.bx, ty = wb.by + wb.bh/2;
+        const t_ = Math.min(1, (inf - 0.2 - pi*0.03) / 0.3);
+        if (t_ <= 0) return;
+        const ex = px + (tx-px)*t_, ey = py + (ty-py)*t_;
+        lCtx.strokeStyle = `rgba(232,230,240,${attnAlpha*0.25})`;
+        lCtx.lineWidth = 0.8;
+        lCtx.beginPath(); lCtx.moveTo(px, py); lCtx.lineTo(ex, ey); lCtx.stroke();
+      });
+      lSans(W*0.3, H/2 + 55, 'reading data via attention', 8, `rgba(180,180,210,${attnAlpha*0.6})`, 'center');
+    }
+
+    // ── Output PPD on right ──
+    const ppdAlpha = Math.min(1, Math.max(0, (inf - 0.55) / 0.35));
+    if (ppdAlpha > 0) {
+      const pW = 120, pH = 80;
+      const pX = W - pW - 20, pY = H/2 - pH/2;
+      lDrawPPD(ds.ppd, '#7c6af5', pX, pY, pW, pH, ppdAlpha, true);
+      lSans(pX+pW/2, pY - 14, 'posterior predictive', 9, `rgba(180,160,255,${ppdAlpha*0.9})`, 'center', '500');
+      lSans(pX+pW/2, pY + pH + 10, 'p(y | x, D_new)', 9, `rgba(140,130,200,${ppdAlpha*0.6})`, 'center');
+
+      // Arrow from weights → PPD
+      const ax1 = wb.bx + wb.bw, ay1 = wb.cy;
+      const ax2 = pX - 4, ay2 = pY + pH/2;
+      lCtx.strokeStyle = `rgba(124,106,245,${ppdAlpha*0.6})`;
+      lCtx.lineWidth = 1.2;
+      lCtx.setLineDash([4,3]);
+      lCtx.beginPath(); lCtx.moveTo(ax1,ay1); lCtx.lineTo(ax2,ay2); lCtx.stroke();
+      lCtx.setLineDash([]);
+    }
+
+    // "Same weights." badge
+    const badgeAlpha = Math.min(1, Math.max(0, (inf - 0.7) / 0.2));
+    if (badgeAlpha > 0) {
+      lSans(W*0.6, H - 24, 'Same weights.  Different dataset.  Correct posterior.', 10, `rgba(94,203,138,${badgeAlpha*0.85})`, 'center', '500');
+    }
+
+    if (inferT === 0) {
+      document.getElementById('learn-caption').innerHTML =
+        `<strong style="color:var(--green)">Inference — no retraining needed.</strong> A new dataset arrives that the model has never seen. The attention mechanism reads its structure, the weights map that fingerprint to the appropriate posterior shape, and the bar distribution outputs <code>p(y | x, D_new)</code>, all in a single forward pass. The weights have learned not <em>what</em> specific datasets look like, but <em>how</em> to infer from any dataset consistent with the prior.`;
+    }
+  }
+}
+
+function initKernel() {
+  // kept as no-op so showSection(4) doesn't error
+  learnEnsureCanvas();
+  learnReset();
+}
+</script>
+</body>
+</html>
