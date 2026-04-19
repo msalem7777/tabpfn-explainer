@@ -561,7 +561,7 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
   <span class="label">Internal tensor shape after encoding</span>
   (batch, seq_len, num_feature_groups + 1, d_model)
   <span class="note">The +1 is the label column. For training rows it holds the true label. For query rows it is filled with NaNs, and its value after all L transformer layers is what gets decoded into a prediction.</span>
-  <span class="note new" style="margin-top:0.4rem;display:block;"><strong>What these dimensions mean in practice:</strong> <code>batch = 1</code> at inference, the model processes one dataset per forward pass. <code>seq_len</code> = number of training rows + number of query rows, all seen together in a single context.</span>
+  <span class="note new" style="margin-top:0.4rem;display:block;"><strong>What these dimensions mean in practice:</strong> In the context of pretraining, the <code>batch</code> dimension reflects the synthetic data splits during training. At inference time, <code>batch = 1</code> reflecting the dataset to be analyzed, the model processes one dataset per forward pass. <code>seq_len</code> = number of training rows + number of query rows, all seen together in a single context.</span>
 </div>
 
 <div class="wrap">
@@ -732,11 +732,11 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 </p>
 
 <div class="new-block">
-  <p style="margin:0 0 0.5rem;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">Scope note.</strong> This section describes TabPFN v2's bar distribution loss. Other tabular foundation models use different loss functions — TabICL v2, for example, takes a different approach. The principle of outputting a predictive distribution rather than a point estimate is broadly shared, but the specific discretisation mechanism described here is TabPFN v2's design.</p>
+  <p style="margin:0 0 0.5rem;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">Scope note.</strong> This section describes TabPFN v2's bar distribution loss. Other tabular foundation models use different loss functions. The principle of outputting a predictive distribution rather than a point estimate is broadly shared, but the specific discretisation mechanism described here is TabPFN v2's design.</p>
 </div>
 
 <div class="new-block" style="max-width:var(--max);">
-  <p style="margin:0 0 0.5rem;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">What is NLL?</strong> NLL stands for Negative Log-Likelihood. To understand it, start with the question: "How probable does the model think the true answer is?" That probability is the likelihood. If the model assigns high probability to the correct target value, it is doing well; if it spreads probability elsewhere, it is doing poorly. The log of a probability is always negative or zero (since probabilities are between 0 and 1), so a model that assigns probability 1.0 to the right answer gets log(1) = 0 — a perfect score. A model that assigns very low probability gets a very large negative log, and negating that gives a large positive loss. Minimising NLL therefore means training the model to assign high probability to what actually happened. It is the standard way to train any probabilistic model.</p>
+  <p style="margin:0 0 0.5rem;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">What is NLL?</strong> NLL stands for Negative Log-Likelihood. To understand it, start with the question: "How probable does the model think the true answer is?" That probability is the likelihood. If the model assigns high probability to the correct target value, it is doing well; if it spreads probability elsewhere, it is doing poorly. The log of a probability is always negative or zero (since probabilities are between 0 and 1), so a model that assigns probability 1.0 to the right answer gets log(1) = 0 - a perfect score. A model that assigns very low probability gets a very large negative log, and negating that gives a large positive loss. Minimising NLL therefore means training the model to assign high probability to what actually happened. It is the standard way to train any probabilistic model.</p>
 </div>
 
 <h3>Building the buckets</h3>
@@ -749,7 +749,7 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
   A key point that is easy to miss: <strong>the same bin boundaries are shared across all datasets</strong>. They are computed once from a large pooled sample drawn from the prior distribution — spanning many different synthetic datasets with different target ranges. Individual dataset targets are then normalised (z-scored) before being mapped to these shared bins, so the bins always cover the relevant range regardless of the dataset's original scale. This also means that while each dataset has its own unique distribution of targets, they all speak the same "binned language" during training. Discretisation of this kind is a well-established technique in statistics and machine learning; with a large enough N, even continuous distributions can be represented accurately. In the bar distribution, N is chosen so that the expected error from discretisation is negligible relative to the model's uncertainty — and because predictions are formed by taking the mean or median of the distribution rather than the bin centre, the approach is even more accurate than it might first appear.
 </p>
 
-<details class="adv-box new">
+<!-- <details class="adv-box new">
   <summary><span class="adv-tag">Advanced</span> Shared bins: how multiple prior datasets converge to one set of boundaries</summary>
   <div class="adv-body">
     <p>The bin boundaries are a global property of the prior, not of any individual dataset. Each dataset's targets are z-scored before binning, so the same N equal-probability boundaries apply regardless of scale. The interactive bar distribution visualization (step 1) shows exactly how these shared boundaries are constructed. Open it below or in a new tab.</p>
@@ -765,10 +765,10 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
       &nbsp;·&nbsp; Use <strong>Step →</strong> to walk through: (1) how the equal-probability borders are built from the pooled prior, (2) how a target value maps to its bucket.
     </p>
   </div>
-</details>
+</details> -->
 
 <p>
-  The model outputs a logit vector of length <em>N</em>. A softmax turns this into a probability histogram - a bar chart where each bar represents the probability that the true target falls in that bucket. This is the "bar distribution" or Riemann distribution.
+  The model outputs a logit vector of length <em>N</em>. A softmax turns this into a probability histogram; a bar chart where each bar represents the probability that the true target falls in that bucket. This is the "bar distribution" or Riemann distribution.
 </p>
 
 <h3>The loss: density NLL, not categorical cross-entropy</h3>
