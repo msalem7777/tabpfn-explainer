@@ -2249,9 +2249,10 @@ function learnDraw(t) {
 
     // Incoming dataset (left side)
     const dsAlpha = Math.min(1, dsProgress * 4);
-    const slideX = Math.max(0, (1 - dsProgress*2)) * (-80);
-    const sW = 90, sH = 60;
-    const sX = 16 + slideX, sY = H/2 - sH/2 - 30;
+    const slideX = Math.max(0, (1 - dsProgress * 2)) * (-80);
+    const sW = 92, sH = 66;
+    const sY = H/2 - sH/2 - 40;
+    const sX = Math.max(20, 20 + slideX);
 
     lDrawScatter(ds.pts, ds.color, sX, sY, sW, sH, dsAlpha);
     lSans(sX + sW/2, sY - 12, ds.label, 9, `${ds.color}cc`, 'center');
@@ -2261,7 +2262,7 @@ function learnDraw(t) {
     const arrowProgress = Math.min(1, (dsProgress - 0.15) / 0.4);
     if (arrowProgress > 0) {
       const ax1 = sX + sW + 4, ay1 = sY + sH/2;
-      const ax2 = wCX - 58, ay2 = H/2;
+      const ax2 = wb.bx - 4, ay2 = wb.cy;
       const ax = ax1 + (ax2-ax1)*arrowProgress;
       const ay = ay1 + (ay2-ay1)*arrowProgress;
       lCtx.strokeStyle = `${ds.color}88`;
