@@ -616,7 +616,7 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 </div>
 
 <p class="new" style="background:#fffacd;outline:2px solid #e8d800;border-radius:6px;padding:0.7rem 1rem;max-width:var(--max);margin:1rem auto;">
-  <strong>Attention to detail:</strong> To simplify, we can think of attention as looking at the values in the row-column intersections, however, the real implementation is a bit more nuanced; before attention runs, each raw feature value is projected from a single scalar into a <em>d</em>-dimensional embedding vector by a learned linear encoder. The label column is encoded by a separate <code>y_encoder</code>. The attention mechanism then operates on these dense embedding vectors, not on the raw numbers. Note also that a token can represent more than a single feature: adjacent features can be grouped together into a single token before projection. We cover this in detail in the Advanced section below.
+  <strong>Attention to detail:</strong> To simplify, we can think of attention as looking at the values in the row-column intersections, however, the real implementation is a bit more nuanced; before attention runs, each raw feature value is projected from a single scalar into a <em>d</em>-dimensional embedding vector by a learned linear encoder. The label column is encoded by a separate <code>y_encoder</code>. The attention mechanism then operates on these dense embedding vectors, not on the raw numbers. Note also that a token can represent more than a single feature: adjacent features can be grouped together into a single token before projection.
 </p>
 </div>
   
@@ -632,11 +632,11 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 </p>
 
 <p class="new" style="background:#fffacd;outline:2px solid #e8d800;border-radius:6px;padding:0.7rem 1rem;max-width:var(--max);margin:0.8rem auto;">
-  There are deeper reasons an MLP cannot serve as a general-purpose tabular foundation model. The first is subtle but fundamental: a plain MLP is <em>rotationally invariant</em> — applying any rotation to the feature matrix produces the same learned function. This sounds harmless, but Ng (2004) proves it is not: any rotationally invariant learning procedure has worst-case sample complexity that grows linearly in the number of irrelevant features, because the algorithm must first recover the original feature orientation before it can discard uninformative directions. More importantly, Grinsztajn et al. (2022)<sup><a href="#ref5">[5]</a></sup> show experimentally that randomly rotating tabular datasets <em>reverses</em> the performance ranking of models — neural networks, once uncompetitive, suddenly dominate tree-based methods. The conclusion is that the natural coordinate basis of tabular data is genuinely informative: features carry meaning individually (age, income, and debt are not interchangeable directions in feature space), and a model that cannot anchor to that basis is blind to this structure. The embedding step in TabPFN explicitly breaks rotational invariance by learning a separate projection for each feature position — and this is a significant part of why embeddings help even for purely numerical features. Second, a plain MLP assumes a fixed number of input dimensions tied to specific positions — it cannot be pretrained across datasets with different schemas. Attention has no such constraint; each token attends to all others regardless of column count or order. Third, tabular data is heterogeneous: a single row may contain a float, a categorical string, and a binary flag. Every column is embedded into the same shared vector space through feature tokenisation, and attention learns cross-feature relationships from there. A fourth distinction: an MLP learns a predictive distribution only implicitly, as a byproduct of many gradient steps on a fixed training set. Here the predictive distribution is an explicit output — a full histogram over possible target values — produced in a single forward pass from the training context.
+  <strong>Advanced note:</strong> There are deeper reasons an MLP cannot serve as a general-purpose tabular foundation model. The first is subtle but fundamental: a plain MLP is <em>rotationally invariant</em>: applying any rotation to the feature matrix produces the same learned function. This sounds harmless, but it is not (see Grinsztajn et al. (2022)<sup><a href="#ref5">[5]</a></sup>). The embedding step in TabPFN explicitly breaks rotational invariance by learning a separate projection for each feature position. Second, a plain MLP assumes a fixed number of input dimensions tied to specific positions, it cannot be pretrained across datasets with different schemas. Attention has no such constraint; each token attends to all others regardless of column count or order.
 </p>
 
 <p>
-  Attention changes this fundamentally. By attending over the training set, the model's computation is <em>conditioned</em> on the entire observed dataset. The effective function applied to a query point is not fixed — it is a function of the context.
+  Attention changes this fundamentally. By attending over the training set, the model's computation is <em>conditioned</em> on the entire observed dataset. The effective function applied to a query point is not fixed, it is a function of the context.
 </p>
 </div>
 
@@ -680,7 +680,7 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
   <tr>
     <td>Small data</td>
     <td>Prone to overfitting; needs regularisation</td>
-    <td>Leverages pretraining prior; works with ~10 examples</td>
+    <td>Leverages pretraining prior</td>
   </tr>
 </table>
 </div>
@@ -917,11 +917,11 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 </p>
 
 <p>
-  Here is what that means in plain terms. During pretraining, the model sees ~130 million datasets. For each one, a label is masked, and the model is trained to predict it from the remaining context. Over time the model discovers that certain patterns in the training rows reliably predict outcomes — linear relationships, clusters, interaction effects — and it learns to recognise those patterns and apply the appropriate predictive logic. By the end of training, the weights have compressed this learning into a function that can identify the statistical character of any new dataset and output a well-calibrated prediction in a single forward pass.
+  Here is what that means in plain terms. During pretraining, the model sees ~130 million datasets. For each one, a label is masked, and the model is trained to predict it from the remaining context. Over time the model discovers that certain patterns in the training rows reliably predict outcomes - linear relationships, clusters, interaction effects - and it learns to recognise those patterns and apply the appropriate predictive logic. By the end of training, the weights have compressed this learning into a function that can identify the statistical character of any new dataset and output a well-calibrated prediction in a single forward pass.
 </p>
 
 <p>
-  At inference time, the attention mechanism is the instrument that reads the dataset's character. When the query row's label slot attends to training rows via row attention, it is asking: which training examples are most relevant to this query? When column attention runs on a training row, it is asking: what pattern do these features and this label represent together? By the time information has propagated through <em>L</em> layers of alternating attention and MLP, the label slot of the query row holds a rich encoding of the question "given that the training set looks like this, what should the label be?" — and the decoder reads that encoding to produce the output distribution.
+  At inference time, the attention mechanism is the instrument that reads the dataset's character. When the query row's label slot attends to training rows via row attention, it is asking: which training examples are most relevant to this query? When column attention runs on a training row, it is asking: what pattern do these features and this label represent together? By the time information has propagated through <em>L</em> layers of alternating attention and MLP, the label slot of the query row holds a rich encoding of the question "given that the training set looks like this, what should the label be?" and the decoder reads that encoding to produce the output distribution.
 </p>
 
 <p>
@@ -948,8 +948,8 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
       \[\mathbb{E}_{D}\left[\mathrm{KL}\left(p(y \mid x, D)\ \|\ q_{\theta}(y \mid x, D)\right)\right] \to 0\]
       <span class="note">At the optimum, the model's output q<sub>θ</sub> equals the true posterior predictive p(y | x, D) for every dataset in the prior.</span>
     </div>
-    <p>This is a strong result: train a network to predict masked labels across a diverse enough prior, and it converges to the exact Bayesian posterior predictive — not an approximation. The weights have learned to compress the algorithm for computing posteriors into a single forward pass.</p>
-    <p><strong>The connection to kernel methods.</strong> There is also a useful analogy to Gaussian processes. In GP regression, you specify a kernel function that measures similarity between data points, and predictions are weighted combinations of training labels where weights reflect similarity to the query. TabPFN's row-attention weights play the same role: high weight means "this training example is informative about this query." The difference is that in a GP the kernel is fixed and hand-specified (RBF, Matérn, etc.), whereas here the notion of "similarity" is itself learned from the pretraining distribution — and adjusted on the fly for each new dataset the model reads.</p>
+    <p>This is a strong result: train a network to predict masked labels across a diverse enough prior, and it converges to the Bayesian posterior predictive distribution. The weights have learned to compress the algorithm for computing posteriors into a single forward pass.</p>
+    <p><strong>The connection to kernel methods.</strong> There is also a useful analogy to Gaussian processes. In GP regression, you specify a kernel function that measures similarity between data points, and predictions are weighted combinations of training labels where weights reflect similarity to the query. TabPFN's row-attention weights play the same role: high weight means "this training example is informative about this query." The difference is that in a GP the kernel is fixed and hand-specified (RBF, Matérn, etc.), whereas here the notion of "similarity" is itself learned from the pretraining distribution and adjusted on the fly for each new dataset the model reads.</p>
   </div>
 </details>
 
