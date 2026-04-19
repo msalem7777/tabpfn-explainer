@@ -632,7 +632,7 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 </p>
 
 <p class="new" style="background:#fffacd;outline:2px solid #e8d800;border-radius:6px;padding:0.7rem 1rem;max-width:var(--max);margin:0.8rem auto;">
-  There are two deeper reasons an MLP cannot serve as a general-purpose tabular foundation model. First, it assumes a <em>fixed column ordering</em>: an MLP trained on [age, income, debt] cannot be applied to [debt, income, age, zipcode] — the weight matrices are tied to specific input positions. This makes it impossible to pretrain a single MLP across datasets with different schemas. Attention has no such assumption; each feature token attends to all others regardless of order. Second, tabular data is heterogeneous: a single row may contain a floating-point age, a categorical city name, and a binary flag. An MLP requires these to be heavily preprocessed (one-hot encoding, manual normalisation) into a fixed numeric vector before training. Here, every column — regardless of type — is embedded into the same shared vector space through feature tokenisation, and the attention mechanism learns the relevant cross-feature relationships from there. A third distinction: an MLP learns a predictive distribution only implicitly, as a byproduct of many gradient steps on a fixed training set. Here the predictive distribution is an explicit output — a full histogram over possible target values — produced in a single forward pass from the training context.
+  There are deeper reasons an MLP cannot serve as a general-purpose tabular foundation model. The first is subtle but fundamental: a plain MLP is <em>rotationally invariant</em> — applying any rotation to the feature matrix produces the same learned function. This sounds harmless, but Ng (2004) proves it is not: any rotationally invariant learning procedure has worst-case sample complexity that grows linearly in the number of irrelevant features, because the algorithm must first recover the original feature orientation before it can discard uninformative directions. More importantly, Grinsztajn et al. (2022)<sup><a href="#ref5">[5]</a></sup> show experimentally that randomly rotating tabular datasets <em>reverses</em> the performance ranking of models — neural networks, once uncompetitive, suddenly dominate tree-based methods. The conclusion is that the natural coordinate basis of tabular data is genuinely informative: features carry meaning individually (age, income, and debt are not interchangeable directions in feature space), and a model that cannot anchor to that basis is blind to this structure. The embedding step in TabPFN explicitly breaks rotational invariance by learning a separate projection for each feature position — and this is a significant part of why embeddings help even for purely numerical features. Second, a plain MLP assumes a fixed number of input dimensions tied to specific positions — it cannot be pretrained across datasets with different schemas. Attention has no such constraint; each token attends to all others regardless of column count or order. Third, tabular data is heterogeneous: a single row may contain a float, a categorical string, and a binary flag. Every column is embedded into the same shared vector space through feature tokenisation, and attention learns cross-feature relationships from there. A fourth distinction: an MLP learns a predictive distribution only implicitly, as a byproduct of many gradient steps on a fixed training set. Here the predictive distribution is an explicit output — a full histogram over possible target values — produced in a single forward pass from the training context.
 </p>
 
 <p>
@@ -673,9 +673,9 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
     <td>Dataset provided as context; forward pass only</td>
   </tr>
   <tr>
-    <td>Permutation invariance</td>
-    <td>Column order affects predictions</td>
-    <td>Inherently order-agnostic; ensemble enforces it</td>
+    <td>Rotation invariance</td>
+    <td>Rotationally invariant — cannot anchor to the natural feature basis; sample complexity grows with irrelevant features<sup><a href="#ref5">[5]</a></sup></td>
+    <td>Embedding layer breaks rotational invariance; each feature gets its own learned projection tied to its position</td>
   </tr>
   <tr>
     <td>Small data</td>
@@ -1025,6 +1025,9 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
     </li>
     <li id="ref4">
       Hollmann, N., Müller, S., Purucker, L., Krishnakumar, A., Körfer, M., Hoo, S. B., Schirrmeister, R. T., &amp; Hutter, F. (2025). <em>Accurate predictions on small data with a tabular foundation model.</em> Nature, 637(8045), 319–326. <a href="https://doi.org/10.1038/s41586-024-08328-6" target="_blank">doi:10.1038/s41586-024-08328-6</a>
+    </li>
+    <li id="ref5">
+      Grinsztajn, L., Oyallon, E., &amp; Varoquaux, G. (2022). <em>Why tree-based models still outperform deep learning on tabular data.</em> Advances in Neural Information Processing Systems 35 (NeurIPS 2022). <a href="https://dl.acm.org/doi/10.5555/3600270.3600307" target="_blank">doi:10.5555/3600270.3600307</a>
     </li>
   </ol>
 </section>

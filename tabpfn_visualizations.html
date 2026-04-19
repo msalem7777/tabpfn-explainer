@@ -472,10 +472,13 @@ table.data-table tr.row-highlight td {
 function showSection(i) {
   document.querySelectorAll('.section').forEach((s,j) => s.classList.toggle('active', j===i));
   document.querySelectorAll('.nav-btn').forEach((b,j) => b.classList.toggle('active', j===i));
-  if (i===2) drawArch();
-  if (i===3) { initBarDist(); }
-  if (i===4) { initKernel(); }
-  if (i===5) { encInit(); }
+  // Defer canvas inits to next frame so browser has laid out the now-visible section
+  requestAnimationFrame(() => {
+    if (i===2) drawArch();
+    if (i===3) { initBarDist(); }
+    if (i===4) { initKernel(); }
+    if (i===5) { encInit(); }
+  });
 }
 
 // On load: read ?tab=N from the URL and switch to that section
@@ -1538,6 +1541,7 @@ function bdNLL(probs, bucketWidth, targetBucket) {
 function bdEnsureCanvas() {
   if (bdCanvas) return;
   bdCanvas = document.getElementById('bar-canvas');
+  if (!bdCanvas || bdCanvas.offsetWidth === 0) { bdCanvas = null; return; }
   const dpr = window.devicePixelRatio || 1;
   bdCanvas.width  = bdCanvas.offsetWidth  * dpr;
   bdCanvas.height = 300 * dpr;
@@ -2082,6 +2086,7 @@ function learnPlay() {
 function learnEnsureCanvas() {
   if (learnCanvas) return;
   learnCanvas = document.getElementById('learn-canvas');
+  if (!learnCanvas || learnCanvas.offsetWidth === 0) { learnCanvas = null; return; }
   const dpr = window.devicePixelRatio || 1;
   learnCanvas.width  = learnCanvas.offsetWidth * dpr;
   learnCanvas.height = 360 * dpr;
@@ -2410,17 +2415,19 @@ function encDraw(step) {
   const cv = document.getElementById('enc-canvas');
   if (!cv) return;
   const dpr = window.devicePixelRatio || 1;
-  cv.width  = cv.offsetWidth * dpr;
+  const displayW = cv.offsetWidth;
+  if (displayW === 0) { requestAnimationFrame(() => encDraw(step)); return; }
+  cv.width  = displayW * dpr;
   cv.height = 340 * dpr;
   const ctx = cv.getContext('2d');
   ctx.scale(dpr, dpr);
-  const W = cv.offsetWidth, H = 340;
+  const W = displayW, H = 340;
 
   // palette
   const PURP='#7c6af5', TEAL='#2ec4b6', AMB='#e8a623', GRN='#5ecb8a', CORAL='#e8604c';
 
-  ctx.fillStyle = 'var(--bg)' || '#0f0f11';
-  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#0f0f11';
+  ctx.fillRect(0, 0, W, H);
 
   // helpers
   function mono(txt, x, y, size, col, align='center', baseline='middle') {
