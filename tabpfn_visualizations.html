@@ -2249,9 +2249,10 @@ function learnDraw(t) {
 
     // Incoming dataset (left side)
     const dsAlpha = Math.min(1, dsProgress * 4);
-    const slideX = Math.max(0, (1 - dsProgress * 2)) * (-80);
+    // const slideX = Math.max(0, (1 - dsProgress * 2)) * (-80);
+    const slideX = 0;
     const sW = 92, sH = 66;
-    const sY = H/2 - sH/2 - 40;
+    const sY = H/2 - sH/2 - 55;   // move top card slightly higher
     const sX = Math.max(20, 20 + slideX);
 
     lDrawScatter(ds.pts, ds.color, sX, sY, sW, sH, dsAlpha);
@@ -2277,7 +2278,7 @@ function learnDraw(t) {
     // PPD for this dataset (below scatter)
     const ppdAlpha = Math.min(1, Math.max(0, (dsProgress - 0.3) / 0.3));
     const pW = 80, pH = 48;
-    const pX = 16 + slideX, pY = sY + sH + 26;
+    const pX = 16, pY = sY + sH + 26;   // fixed position: no slide-in
     lDrawPPD(ds.ppd, ds.color, pX, pY, pW, pH, ppdAlpha, true);
     if (ppdAlpha > 0.5) {
       lSans(pX + pW/2, pY - 10, 'true PPD', 8, `${ds.color}99`, 'center');
