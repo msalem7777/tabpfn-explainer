@@ -301,6 +301,7 @@ table.data-table tr.row-highlight td {
   <button class="nav-btn" onclick="showSection(2)">③ Architecture Flow</button>
   <button class="nav-btn" onclick="showSection(3)">④ Bar Distribution Loss</button>
   <button class="nav-btn" onclick="showSection(4)">⑤ What the Model Learns</button>
+  <button class="nav-btn" onclick="showSection(5)">⑥ Feature Encoding</button>
 </nav>
 
 
@@ -437,7 +438,34 @@ table.data-table tr.row-highlight td {
 </section>
 
 
-<script>
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SECTION 6: FEATURE ENCODING PIPELINE                       -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<section class="section" id="sec5">
+  <h2 class="section-title">From raw table to token grid: the encoding pipeline</h2>
+  <p class="section-sub">Before a single attention operation runs, each estimator in the 8-member ensemble passes the data through a multi-stage preprocessing pipeline. Each stage transforms the raw numbers into a form the transformer can reason over. Step through the four stages to see what the model actually receives — and why the ensemble design is essential.</p>
+
+  <div class="vis-box">
+    <div style="display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; align-items:center;" id="enc-stage-pips">
+      <span id="enc-pip-0" class="dag-pip active-pip" onclick="encShowStage(0)" style="cursor:pointer;">① Raw table</span>
+      <span style="color:var(--muted);line-height:28px;font-size:12px;">→</span>
+      <span id="enc-pip-1" class="dag-pip" onclick="encShowStage(1)" style="cursor:pointer;">② Per-feature transforms</span>
+      <span style="color:var(--muted);line-height:28px;font-size:12px;">→</span>
+      <span id="enc-pip-2" class="dag-pip" onclick="encShowStage(2)" style="cursor:pointer;">③ SVD · encode · shuffle</span>
+      <span style="color:var(--muted);line-height:28px;font-size:12px;">→</span>
+      <span id="enc-pip-3" class="dag-pip" onclick="encShowStage(3)" style="cursor:pointer;">④ Linear projection → tokens</span>
+    </div>
+
+    <canvas id="enc-canvas" style="width:100%;height:340px;display:block;border-radius:6px;background:var(--bg3);"></canvas>
+
+    <div id="enc-caption" style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:10px;min-height:3.5rem;line-height:1.65;padding:8px 10px;background:var(--bg3);border-radius:6px;"></div>
+
+    <div class="ctrl-row" style="margin-top:10px;">
+      <button class="btn" onclick="encShowStage(Math.max(0,encCurrentStage-1))">← Prev</button>
+      <button class="btn primary" onclick="encShowStage((encCurrentStage+1)%4)">Next →</button>
+    </div>
+  </div>
+</section>
 /* ═══════════════════════════════════════════════ */
 /* NAV                                             */
 /* ═══════════════════════════════════════════════ */
@@ -447,13 +475,14 @@ function showSection(i) {
   if (i===2) drawArch();
   if (i===3) { initBarDist(); }
   if (i===4) { initKernel(); }
+  if (i===5) { encInit(); }
 }
 
 // On load: read ?tab=N from the URL and switch to that section
 (function() {
   const params = new URLSearchParams(window.location.search);
   const tab = parseInt(params.get('tab') || '0', 10);
-  if (tab >= 0 && tab <= 4) {
+  if (tab >= 0 && tab <= 5) {
     window.addEventListener('load', () => showSection(tab));
   }
 })();
@@ -518,7 +547,7 @@ const STEP_LABELS = [
   ['① Sample DAG', `A random DAG is drawn. Root nodes (purple) are inputs; the target (green) is the output we want to predict. The graph defines which features causally influence which.`],
   ['② Assign weights &amp; functions', `Each edge gets a random weight w. Each non-root node is assigned a nonlinear function f (ReLU, tanh, sigmoid…). These together define the data-generating mechanism.`],
   ['③ Sample &amp; propagate noise ε', `Noise ε ~ N(0, σ²) is sampled at each root node. Values propagate forward: each node computes f(Σ wᵢ · parentᵢ + εᵢ). Watch values light up left-to-right.`],
-  ['④ One row of synthetic data produced', `The computed values become one row of a synthetic dataset. Repeat 130 million times across many different DAGs — that is the pretraining corpus TabPFN learns from.`],
+  ['④ One row of synthetic data produced', `The computed values become one row of a synthetic dataset. Each dataset contains many such rows. Repeating across ~130 million distinct datasets — each from a different DAG — builds the full pretraining corpus TabPFN learns from.`],
 ];
 
 function setDagPip(active) {
@@ -2344,6 +2373,279 @@ function initKernel() {
   // kept as no-op so showSection(4) doesn't error
   learnEnsureCanvas();
   learnReset();
+}
+
+/* ═══════════════════════════════════════════════ */
+/* SECTION 6: FEATURE ENCODING PIPELINE           */
+/* ═══════════════════════════════════════════════ */
+let encCurrentStage = 0;
+let encInitialized = false;
+
+const ENC_CAPTIONS = [
+  '① Raw table. Each row contains heterogeneous features: a continuous float (age=34), a large numeric (income=52k), a categorical string (debt="low"), and a binary label (y=1). A query row has an unknown label (?). An MLP requires these to be heavily preprocessed into a fixed numeric format before training — here, all types enter the model natively through feature tokenisation.',
+  '② Per-feature distribution transforms (one configuration per estimator). Each numeric column is independently reshaped: quantile normalisation maps skewed distributions to uniform [0,1] or normal output; the squashing scaler applies robust centering followed by soft clipping to handle outliers. Constant features are dropped (RemoveConstantFeaturesStep). Categorical columns receive ordinal encoding with randomly shuffled category order. A fingerprint feature — a hash of each row — is appended to help the model distinguish otherwise identical rows.',
+  '③ Global SVD transform · feature shuffle. Some estimators apply Truncated SVD across all features after the per-feature step: the original features are kept and a set of principal components (n_features/4 components) is appended alongside them, capturing global linear structure. Then each of the 8 ensemble estimators applies a different cyclic rotation of the feature column order (ShuffleFeaturesStep). Averaged across 8 different shuffles, the prediction becomes approximately permutation-invariant — the model\'s output no longer depends on which column was listed first in your CSV.',
+  '④ Linear projection → token grid. Each (preprocessed) scalar feature value x is multiplied by a learned weight vector W ∈ ℝ^d_model to produce a d-dimensional embedding: token = W · x. With features_per_group=1 (TabPFN v2 default), each feature is its own token. The label y goes through a separate y_encoder. The result is a token grid of shape (seq_len, num_feature_groups + 1, d_model) where seq_len = n_train_rows + n_query_rows. This is what row and column attention operate on — dense vectors in a shared space, not raw heterogeneous scalars.',
+];
+
+function encShowStage(i) {
+  encCurrentStage = i;
+  document.querySelectorAll('#enc-stage-pips .dag-pip').forEach((p, j) => {
+    p.style.background     = j === i ? 'var(--accent)' : '';
+    p.style.color          = j === i ? '#fff' : '';
+    p.style.borderColor    = j === i ? 'var(--accent)' : '';
+  });
+  document.getElementById('enc-caption').innerHTML = ENC_CAPTIONS[i];
+  encDraw(i);
+}
+
+function encInit() {
+  if (encInitialized) return;
+  encInitialized = true;
+  encShowStage(0);
+  window.addEventListener('resize', () => encDraw(encCurrentStage));
+}
+
+function encDraw(step) {
+  const cv = document.getElementById('enc-canvas');
+  if (!cv) return;
+  const dpr = window.devicePixelRatio || 1;
+  cv.width  = cv.offsetWidth * dpr;
+  cv.height = 340 * dpr;
+  const ctx = cv.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = cv.offsetWidth, H = 340;
+
+  // palette
+  const PURP='#7c6af5', TEAL='#2ec4b6', AMB='#e8a623', GRN='#5ecb8a', CORAL='#e8604c';
+
+  ctx.fillStyle = 'var(--bg)' || '#0f0f11';
+  ctx.clearRect(0,0,W,H);
+
+  // helpers
+  function mono(txt, x, y, size, col, align='center', baseline='middle') {
+    ctx.font=`${size}px IBM Plex Mono`; ctx.fillStyle=col;
+    ctx.textAlign=align; ctx.textBaseline=baseline;
+    ctx.fillText(txt, x, y);
+  }
+  function box(x,y,w,h,fill,stroke,r=4) {
+    ctx.fillStyle=fill; ctx.beginPath(); ctx.roundRect(x,y,w,h,r); ctx.fill();
+    if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=0.8;ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.stroke();}
+  }
+  function arrow(x1,y1,x2,y2,col='rgba(140,130,180,0.4)',sw=1.2) {
+    ctx.strokeStyle=col; ctx.lineWidth=sw;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    const a=Math.atan2(y2-y1,x2-x1);
+    ctx.fillStyle=col; ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2-8*Math.cos(a-0.35),y2-8*Math.sin(a-0.35));
+    ctx.lineTo(x2-8*Math.cos(a+0.35),y2-8*Math.sin(a+0.35));
+    ctx.closePath(); ctx.fill();
+  }
+
+  const rows = [
+    {label:'train₁', vals:['34','52k','low','1'], isQ:false},
+    {label:'train₂', vals:['52','89k','hi', '0'], isQ:false},
+    {label:'query★', vals:['41','68k','med','?'], isQ:true},
+  ];
+  const fNames  = ['age','inc','debt','y'];
+  const fColors = [PURP, PURP, AMB, GRN];
+  const cW=56, cH=28, padX=44, padY=52;
+
+  /* ── STAGE 0: raw table ───────────────────────────── */
+  if (step === 0) {
+    mono('Raw tabular input', W/2, 18, 10, 'rgba(200,190,255,0.55)');
+    // column headers
+    fNames.forEach((f,ci) => mono(f, padX+ci*cW+cW/2, padY-12, 9, fColors[ci]));
+    // type badges
+    const types = ['float','large numeric','categorical','binary label'];
+    const typeCols = [PURP+'99',PURP+'99',AMB+'99',GRN+'99'];
+    fNames.forEach((f,ci) => mono(types[ci], padX+ci*cW+cW/2, padY+rows.length*cH+14, 7, typeCols[ci]));
+
+    rows.forEach((r,ri) => {
+      mono(r.label, padX-4, padY+ri*cH+cH/2, 8, r.isQ ? CORAL : 'rgba(150,140,190,0.5)', 'right');
+      r.vals.forEach((v,ci) => {
+        const isYcol=ci===3;
+        const bg  = r.isQ&&isYcol?'#2a1020':isYcol?'#0e1e12':r.isQ?'#1a1020':'#181830';
+        const bdr = r.isQ&&isYcol?CORAL+'55':isYcol?GRN+'55':fColors[ci]+'44';
+        const lc  = r.isQ&&isYcol?CORAL:isYcol?GRN:'rgba(210,200,240,0.85)';
+        box(padX+ci*cW, padY+ri*cH, cW-3, cH-3, bg, bdr);
+        mono(v, padX+ci*cW+(cW-3)/2, padY+ri*cH+(cH-3)/2, 10, lc);
+      });
+    });
+    mono('MLP requires manual preprocessing (one-hot, normalisation) for this mix.', W/2, H-14, 8, 'rgba(150,140,190,0.3)');
+    mono('Transformers embed all types into the same vector space natively.', W/2, H-4, 8, 'rgba(150,140,190,0.3)');
+  }
+
+  /* ── STAGE 1: per-feature transforms ─────────────── */
+  if (step === 1) {
+    mono('Per-feature transforms  (different config per estimator)', W/2, 18, 10, 'rgba(200,190,255,0.55)');
+
+    const rawVals   = ['34','52k','low','1'];
+    const afterVals = ['0.41','0.68','2','1'];
+    const tNames    = ['Quantile\nnorm','Squashing\nscaler','Ordinal\nencode','(label\nunchanged)'];
+    const tCols     = [PURP, TEAL, AMB, GRN];
+
+    // before row
+    mono('before:', padX-4, 38, 8, 'rgba(150,140,190,0.4)', 'right');
+    fNames.forEach((f,ci) => {
+      box(padX+ci*cW, 28, cW-3, cH-3, '#181830', fColors[ci]+'44');
+      mono(rawVals[ci], padX+ci*cW+(cW-3)/2, 28+(cH-3)/2, 10, 'rgba(200,190,240,0.8)');
+      mono(f, padX+ci*cW+cW/2, 63, 8, fColors[ci]);
+    });
+
+    // transform boxes
+    fNames.forEach((f,ci) => {
+      arrow(padX+ci*cW+(cW-3)/2, 71, padX+ci*cW+(cW-3)/2, 90);
+      box(padX+ci*cW, 92, cW-3, 48, '#12122a', tCols[ci]+'66', 5);
+      const lines = tNames[ci].split('\n');
+      mono(lines[0], padX+ci*cW+(cW-3)/2, 108, 8, tCols[ci]);
+      mono(lines[1]||'', padX+ci*cW+(cW-3)/2, 120, 8, tCols[ci]);
+      mono('→ '+(['uniform [0,1]','soft-clipped','integer rank','label kept'][ci]),
+           padX+ci*cW+(cW-3)/2, 132, 7, 'rgba(160,150,200,0.45)');
+    });
+
+    // after row
+    fNames.forEach((f,ci) => {
+      arrow(padX+ci*cW+(cW-3)/2, 141, padX+ci*cW+(cW-3)/2, 158);
+      box(padX+ci*cW, 160, cW-3, cH-3, '#181830', fColors[ci]+'44');
+      mono(afterVals[ci], padX+ci*cW+(cW-3)/2, 160+(cH-3)/2, 10, 'rgba(210,200,250,0.9)');
+    });
+    mono('after:', padX-4, 160+(cH-3)/2, 8, 'rgba(150,140,190,0.4)', 'right');
+
+    // fingerprint note
+    const fpX = padX + fNames.length*cW + 12;
+    box(fpX, 160, cW-3, cH-3, '#181830', 'rgba(200,180,255,0.25)');
+    mono('fp', fpX+(cW-3)/2, 160+(cH-3)/2, 9, 'rgba(200,180,255,0.5)');
+    mono('+ fingerprint\nfeature appended', fpX+(cW-3)/2, 195, 7, 'rgba(180,160,240,0.4)');
+    mono('Remove constant features  |  Shuffle categories randomly', W/2, H-8, 8, 'rgba(150,140,190,0.3)');
+  }
+
+  /* ── STAGE 2: SVD + shuffle ───────────────────────── */
+  if (step === 2) {
+    mono('Global SVD  ·  feature shuffle  (per-estimator)', W/2, 18, 10, 'rgba(200,190,255,0.55)');
+
+    // original features column
+    const origF = ['f₁','f₂','f₃','f₄','fp'];
+    const oX=28, oY=44, oW=32, oH=26;
+    mono('after step ②', oX+oW/2, oY-12, 8, 'rgba(140,130,180,0.4)');
+    origF.forEach((f,i) => {
+      box(oX, oY+i*oH, oW-2, oH-2, '#181830', PURP+'44');
+      mono(f, oX+(oW-2)/2, oY+i*oH+(oH-2)/2, 9, PURP+'cc');
+    });
+    // y label
+    box(oX, oY+origF.length*oH, oW-2, oH-2, '#0e1e12', GRN+'44');
+    mono('y', oX+(oW-2)/2, oY+origF.length*oH+(oH-2)/2, 9, GRN+'cc');
+
+    // SVD box
+    const svdX=82, svdY=oY+20;
+    arrow(oX+oW, oY+origF.length*oH/2, svdX-2, svdY+40, TEAL+'88');
+    box(svdX, svdY, 66, 80, '#0d1e1e', TEAL+'55', 6);
+    mono('Truncated', svdX+33, svdY+22, 8, TEAL);
+    mono('SVD', svdX+33, svdY+34, 9, TEAL);
+    mono('n_components=', svdX+33, svdY+50, 7, TEAL+'88');
+    mono('n_features/4', svdX+33, svdY+62, 7, TEAL+'88');
+
+    // concat
+    arrow(svdX+66, svdY+40, svdX+94, svdY+40, 'rgba(140,130,180,0.4)');
+    arrow(oX+oW, oY+origF.length*oH/2, svdX+94, svdY+40, 'rgba(140,130,180,0.3)');
+    mono('concat', svdX+83, svdY+25, 7, 'rgba(140,130,180,0.4)');
+
+    // combined block
+    const combF = ['f₁','f₂','f₃','f₄','fp','s₁','s₂','y'];
+    const cmbX=svdX+100, cmbY=oY, cmbW=30, cmbH=22;
+    mono('combined', cmbX+cmbW/2, cmbY-12, 8, 'rgba(140,130,180,0.4)');
+    combF.forEach((f,i) => {
+      const isSVD=i>=5&&i<7, isY=i===7;
+      box(cmbX, cmbY+i*cmbH, cmbW-2, cmbH-2,
+          isSVD?'#0d1e1e':isY?'#0e1e12':'#181830',
+          isSVD?TEAL+'55':isY?GRN+'55':PURP+'44');
+      mono(f, cmbX+(cmbW-2)/2, cmbY+i*cmbH+(cmbH-2)/2, 8, isSVD?TEAL+'cc':isY?GRN+'cc':PURP+'cc');
+    });
+
+    // 8 estimators shuffle illustration
+    const est8X = cmbX+cmbW+30, est8Y = oY;
+    mono('8 estimators × different rotation', est8X+80, est8Y-12, 8, 'rgba(232,166,35,0.6)');
+    const shuffleExamples = [
+      ['f₁','f₃','f₂','s₁'],
+      ['f₂','s₂','f₄','f₁'],
+      ['s₁','f₄','fp','f₃'],
+    ];
+    shuffleExamples.forEach((cols, ei) => {
+      const ey = est8Y + ei*38;
+      mono(`est ${ei+1}:`, est8X-4, ey+10, 7, 'rgba(200,180,100,0.4)', 'right');
+      cols.forEach((f,ci) => {
+        box(est8X+ci*30, ey, 28, 20, '#181820', AMB+'33');
+        mono(f, est8X+ci*30+14, ey+10, 7, AMB+'cc');
+      });
+      mono('…', est8X+cols.length*30+8, ey+10, 9, AMB+'44');
+    });
+    mono('averaged → permutation-invariant prediction', est8X+70, est8Y+3*38+8, 8, 'rgba(232,166,35,0.4)');
+  }
+
+  /* ── STAGE 3: linear projection ──────────────────── */
+  if (step === 3) {
+    mono('Linear projection  →  token grid  (features_per_group = 1)', W/2, 18, 10, 'rgba(200,190,255,0.55)');
+
+    // scalar inputs
+    const scX=22, scY=44, scW=38, scH=24;
+    const scalars = [['f₁','0.41'],['f₂','0.68'],['f₃','2'],['y','1']];
+    mono('preprocessed\nscalars', scX+scalars.length*scW/2, scY-14, 8, 'rgba(140,130,180,0.4)');
+    scalars.forEach(([f,v],i) => {
+      const isY=i===3;
+      box(scX+i*scW, scY, scW-3, scH, isY?'#0e1e12':'#181830', isY?GRN+'55':PURP+'44');
+      mono(f,  scX+i*scW+(scW-3)/2, scY+7,  8, isY?GRN:PURP);
+      mono(v,  scX+i*scW+(scW-3)/2, scY+17, 9, 'rgba(210,200,240,0.85)');
+    });
+
+    // equation
+    mono('token  =  W · x', W/2, scY+scH+22, 13, 'rgba(200,190,255,0.75)');
+    mono('W ∈ ℝ^(features_per_group × d_model)   x = scalar feature value', W/2, scY+scH+38, 8, 'rgba(140,130,180,0.45)');
+
+    // weight matrix heatmap
+    const wX=24, wY=scY+scH+54;
+    const wCols=12, wRows=6, wCW=14, wCH=11;
+    mono('W  (d_model × 1  per feature)', wX+wCols*wCW/2, wY-11, 8, 'rgba(140,130,180,0.4)');
+    for (let r=0;r<wRows;r++) for (let c=0;c<wCols;c++) {
+      const v=Math.sin(r*2.3+c*1.5)*0.5+0.5;
+      ctx.fillStyle=`rgba(124,106,245,${(0.1+v*0.55).toFixed(2)})`;
+      ctx.fillRect(wX+c*wCW, wY+r*wCH, wCW-1, wCH-1);
+    }
+    arrow(wX+wCols*wCW+6, wY+wRows*wCH/2, wX+wCols*wCW+28, wY+wRows*wCH/2);
+
+    // resulting token vector
+    const tX=wX+wCols*wCW+32, tY=wY, tW=18, tH=wRows*wCH;
+    for (let r=0;r<wRows*2;r++) {
+      const v=Math.sin(r*1.3)*0.5+0.5;
+      ctx.fillStyle=`rgba(124,106,245,${(0.2+v*0.45).toFixed(2)})`;
+      ctx.fillRect(tX, tY+r*(tH/(wRows*2)), tW-1, tH/(wRows*2)-1);
+    }
+    ctx.strokeStyle=PURP+'55'; ctx.lineWidth=0.7; ctx.strokeRect(tX, tY, tW, tH);
+    mono('token', tX+tW/2, tY+tH+10, 7, PURP+'99');
+    mono('d=192', tX+tW/2, tY+tH+21, 7, 'rgba(140,130,180,0.4)');
+
+    // token grid
+    const gX=W-180, gY=42, gCW=22, gCH=18;
+    const nRows=3, nCols=5;
+    mono('token grid', gX+nCols*gCW/2, gY-12, 8, 'rgba(200,190,255,0.5)');
+    for (let r=0;r<nRows;r++) for (let c=0;c<nCols;c++) {
+      const isY=c===4, isQ=r===2;
+      box(gX+c*gCW, gY+r*gCH, gCW-2, gCH-2,
+          isY&&isQ?'#2a1020':isY?'#0e1e12':isQ?'#1a1020':'#181830',
+          isY?GRN+'55':PURP+'33');
+      if(isY&&isQ) mono('?',gX+c*gCW+(gCW-2)/2,gY+r*gCH+(gCH-2)/2,8,CORAL);
+    }
+    // shape annotations
+    arrow(gX-2, gY, gX-2, gY+nRows*gCH, PURP+'44');
+    mono('seq_len', gX-14, gY+nRows*gCH/2, 7, 'rgba(140,130,180,0.4)', 'right');
+    arrow(gX, gY+nRows*gCH+2, gX+nCols*gCW, gY+nRows*gCH+2, PURP+'44');
+    mono('num_groups+1', gX+nCols*gCW/2, gY+nRows*gCH+14, 7, 'rgba(140,130,180,0.4)');
+    mono('shape: (seq_len, f+1, d_model)', gX+nCols*gCW/2, gY+nRows*gCH+26, 7, PURP+'88');
+    mono('↓ ready for row & column attention', gX+nCols*gCW/2, gY+nRows*gCH+38, 7, 'rgba(140,130,180,0.35)');
+
+    // note on y_encoder
+    mono('y uses separate y_encoder (2-layer MLP, NaN→masked for query rows)', W/2, H-8, 8, 'rgba(150,140,190,0.3)');
+  }
 }
 </script>
 

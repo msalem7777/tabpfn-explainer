@@ -339,6 +339,88 @@ footer {
   h1 { font-size: 1.9rem; }
   body { font-size: 17px; }
 }
+
+/* ── NEW: yellow highlight for review ───────── */
+.new {
+  background: #fffacd;
+  border-radius: 3px;
+  padding: 0.05em 0.1em;
+}
+p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
+  background: #fffacd;
+  padding: 0.6rem 1rem;
+  border-radius: 6px;
+  outline: 2px solid #e8d800;
+}
+.new-block {
+  background: #fffacd;
+  outline: 2px solid #e8d800;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin: 1.5rem auto;
+  max-width: var(--max);
+}
+.new-block.wide { max-width: var(--wide); }
+
+/* ── NEW: advanced collapsible box ──────────── */
+.adv-box {
+  max-width: var(--wide);
+  margin: 2rem auto;
+  border: 1.5px solid var(--rule);
+  border-radius: 10px;
+  overflow: hidden;
+  font-family: var(--sans);
+}
+.adv-box summary {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1.2rem;
+  cursor: pointer;
+  background: var(--bg-card);
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  list-style: none;
+  user-select: none;
+}
+.adv-box summary::before {
+  content: '▶';
+  font-size: 0.7rem;
+  transition: transform 0.2s;
+  color: var(--accent);
+}
+.adv-box[open] summary::before { transform: rotate(90deg); }
+.adv-box summary .adv-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 3px;
+  padding: 1px 6px;
+}
+.adv-body {
+  padding: 1.2rem 1.5rem;
+  font-size: 0.92rem;
+  color: var(--ink-mid);
+  line-height: 1.7;
+  border-top: 1px solid var(--rule);
+}
+.adv-body p + p { margin-top: 0.8rem; }
+.adv-body canvas {
+  display: block;
+  width: 100%;
+  border-radius: 6px;
+  margin: 1rem 0;
+  background: #0f0f15;
+}
+.adv-body .eq {
+  margin: 1rem 0;
+  font-size: 0.85rem;
+}
   
 .viz-embed {
   max-width: var(--wide);
@@ -429,7 +511,7 @@ footer {
 </p>
 
 <p>
-  Repeat this millions of times, with different graph structures, different weights, different noise levels, and you get an enormous diversity of synthetic datasets, each with different linearity, different feature interactions, different noise distributions. This is the pretraining corpus: hundreds of millions (approximately 130 million in TabPFN's case) synthetic datasets, each generated from a different causal model.
+  Repeat this millions of times, with different graph structures, different weights, different noise levels, and you get an enormous diversity of synthetic datasets, each with different linearity, different feature interactions, different noise distributions. This is the pretraining corpus: <span class="new">approximately 130 million distinct synthetic <em>datasets</em>, each containing many rows and each generated from a different causal model. The total number of training rows is therefore 130 million multiplied by the average dataset size.</span>
 </p>
 
 <p>
@@ -451,9 +533,17 @@ footer {
     title="Interactive visualization: Synthetic data generation"
     loading="lazy">
   </iframe>
+</div>
+
+<div class="new-block">
+  <p style="margin:0;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">Note on feature names.</strong> The feature labels in the illustration above (age, income, debt…) are added for readability only — the synthetic datasets used in pretraining have no semantic feature names. Every column is just a number. That said, the <em>structure</em> of the DAG does matter: a prior that generates causal graphs resembling real-world processes (e.g., income influencing loan outcome rather than the reverse) will produce a model better calibrated for datasets from similar domains. TabPFN v2 allows practitioners to customise the prior towards the kinds of tasks they expect to encounter.</p>
 </div> 
 <!-- ══════════════════════════════════════════════════ -->
 <h2>Part 2 — The architecture: a transformer that reads datasets, not sentences</h2>
+
+<div class="new-block">
+  <p style="margin:0;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">Scope note.</strong> This section describes the architecture of <strong>TabPFN v2</strong> specifically, as implemented in the Prior Labs source code. Other tabular foundation models — including TabPFN v1, TabICL, and ConTextTab — use different architectural choices. The core ideas of synthetic pretraining and in-context learning are shared across the field, but the specific attention design, feature encoding, and loss function described here are TabPFN v2's.</p>
+</div>
 
 <div class="wrap">
 <p>
@@ -471,6 +561,7 @@ footer {
   <span class="label">Internal tensor shape after encoding</span>
   (batch, seq_len, num_feature_groups + 1, d_model)
   <span class="note">The +1 is the label column. For training rows it holds the true label. For query rows it is filled with NaNs, and its value after all L transformer layers is what gets decoded into a prediction.</span>
+  <span class="note new" style="margin-top:0.4rem;display:block;"><strong>What these dimensions mean in practice:</strong> <code>batch = 1</code> at inference — the model processes one dataset per forward pass. <code>seq_len</code> = number of training rows + number of query rows, all seen together in a single context. The 8 estimators (the ensemble) are <em>not</em> a batch dimension; they are 8 separate sequential forward passes on differently preprocessed versions of the same data, whose outputs are averaged.</span>
 </div>
 
 <div class="wrap">
@@ -478,7 +569,30 @@ footer {
   This is the first architectural peculiarity worth noting: the label is not treated as a separate output target sitting outside the model; it is <em>inside</em> the same tensor as the features, occupying the last feature-group slot. This becomes important when we describe how attention actually flows.
 </p>
 
-<h3>Two kinds of attention and why both matter</h3>
+<p class="new" style="background:#fffacd;outline:2px solid #e8d800;border-radius:6px;padding:0.7rem 1rem;max-width:var(--max);margin:1rem auto;">
+  Before attention runs, each raw feature value is projected from a single scalar into a <em>d</em>-dimensional embedding vector by a learned linear encoder. The label column is encoded by a separate <code>y_encoder</code>. The attention mechanism then operates on these dense embedding vectors — not on the raw numbers. Note also that a token can represent more than a single feature: adjacent features can be grouped together into a single token before projection. We cover this in detail in the Advanced section below.
+</p>
+
+</div>
+
+<div class="vis-callout">
+  <div class="icon">②</div>
+  <div class="body">
+    <strong>Interactive · Row &amp; column attention</strong>
+    <p>Step through pre-selected examples showing exactly which cells are Queries, which are Keys (amber border), and which become Values (green fill), for both column attention and row attention. The label column is included. The visualization uses the <code>features_per_group=1</code> default — each feature is its own token. You can also <a href="tabpfn_visualizations.html?tab=1" target="_blank">open it in a new tab</a>.</p>
+  </div>
+</div>
+
+<div class="viz-embed">
+  <iframe
+    src="tabpfn_visualizations.html?tab=1"
+    title="Row and Column Attention"
+    loading="lazy">
+  </iframe>
+</div>
+
+<div class="wrap">
+<h3>Two kinds of attention — and why both matter</h3>
 
 <p>
   Each of the <em>L</em> identical transformer layers applies attention twice in sequence, over two completely different dimensions of the tensor. This is the heart of the architecture.
@@ -532,6 +646,10 @@ footer {
   An MLP trained on a tabular dataset learns a fixed mapping from input features to predictions. The weights encode the learned function, and that function applies identically to every new input. The MLP has no mechanism to condition its predictions on other data points. Each prediction is made in isolation. This is fine when you have a large, representative training set; the MLP can approximate the true function well. But it cannot do "local reasoning": it cannot notice that a particular test point is nearly identical to three specific training examples, and up-weight those examples accordingly.
 </p>
 
+<p class="new" style="background:#fffacd;outline:2px solid #e8d800;border-radius:6px;padding:0.7rem 1rem;max-width:var(--max);margin:0.8rem auto;">
+  There are two deeper reasons an MLP cannot serve as a general-purpose tabular foundation model. First, it assumes a <em>fixed column ordering</em>: an MLP trained on [age, income, debt] cannot be applied to [debt, income, age, zipcode] — the weight matrices are tied to specific input positions. This makes it impossible to pretrain a single MLP across datasets with different schemas. Attention has no such assumption; each feature token attends to all others regardless of order. Second, tabular data is heterogeneous: a single row may contain a floating-point age, a categorical city name, and a binary flag. An MLP requires these to be heavily preprocessed (one-hot encoding, manual normalisation) into a fixed numeric vector before training. Here, every column — regardless of type — is embedded into the same shared vector space through feature tokenisation, and the attention mechanism learns the relevant cross-feature relationships from there. A third distinction: an MLP learns a predictive distribution only implicitly, as a byproduct of many gradient steps on a fixed training set. Here the predictive distribution is an explicit output — a full histogram over possible target values — produced in a single forward pass from the training context.
+</p>
+
 <p>
   Attention changes this fundamentally. By attending over the training set, the model's computation is <em>conditioned</em> on the entire observed dataset. The effective function applied to a query point is not fixed — it is a function of the context.
 </p>
@@ -550,6 +668,11 @@ footer {
     <td>Dynamic; recomputed per query at inference</td>
   </tr>
   <tr>
+    <td>Heterogeneous feature types</td>
+    <td>Requires manual preprocessing (one-hot, normalisation)</td>
+    <td>All types embedded into a shared vector space</td>
+  </tr>
+  <tr>
     <td>Cross-sample reasoning</td>
     <td>None — each prediction isolated</td>
     <td>Native — attends over full training set in context</td>
@@ -560,14 +683,19 @@ footer {
     <td>Output is a full distribution; uncertainty is explicit</td>
   </tr>
   <tr>
-    <td>New dataset</td>
+    <td>New dataset schema</td>
     <td>Must retrain from scratch</td>
-    <td>Dataset is provided as context; forward pass only</td>
+    <td>Dataset provided as context; forward pass only</td>
+  </tr>
+  <tr>
+    <td>Permutation invariance</td>
+    <td>Column order affects predictions</td>
+    <td>Inherently order-agnostic; ensemble enforces it</td>
   </tr>
   <tr>
     <td>Small data</td>
     <td>Prone to overfitting; needs regularisation</td>
-    <td>Leverages pretraining prior; performs well with ~10 examples</td>
+    <td>Leverages pretraining prior; works with ~10 examples</td>
   </tr>
 </table>
 </div>
@@ -577,6 +705,23 @@ footer {
   There is also a compositionality argument. Stacked attention layers compute higher-order feature dependencies without explicit enumeration. After one layer, each token's representation is a nonlinear blend of all its neighbours. In layer 2, attention over those blended representations is effectively computing interactions of interactions. By layer <em>L</em>, every token reflects a deep, nonlinear function of all pairwise relationships in the data, iterated <em>L</em> times. This gives the model access to the equivalent of arbitrary interaction terms without the combinatorial explosion of specifying them explicitly.
 </p>
 </div>
+
+<details class="adv-box new">
+  <summary><span class="adv-tag">Advanced</span> From raw table to token grid: the full preprocessing and encoding pipeline</summary>
+  <div class="adv-body">
+    <p>The encoding step bridges the familiar tabular world (rows and columns of numbers) and the transformer world (sequences of embedding vectors). Understanding it also resolves the tension between the attention visualization — which shows named features attending to each other — and the architecture diagram, which refers to <em>feature groups</em> and a tensor of shape <code>(batch, seq_len, num_feature_groups+1, d_model)</code>. Step through the four stages in the interactive illustration below.</p>
+
+    <div style="margin:1rem 0;border-radius:8px;overflow:hidden;border:1px solid var(--rule);">
+      <iframe src="tabpfn_visualizations.html?tab=5"
+              title="Interactive: Feature encoding pipeline"
+              style="width:100%;height:480px;border:none;display:block;background:#0f0f11;"
+              loading="lazy"></iframe>
+    </div>
+    <p style="font-size:0.82rem;color:var(--ink-soft);font-family:var(--mono);margin-top:0.4rem;"><a href="tabpfn_visualizations.html?tab=5" target="_blank" style="color:var(--accent);">Open full screen ↗</a></p>
+
+    <p><strong>On permutation invariance.</strong> With <code>features_per_group=1</code> (the TabPFN v2 default), every feature is its own isolated token. Swapping two columns produces the same set of tokens in a different order, and since column attention has no positional encoding, the output is identical — the model is exactly permutation-invariant per forward pass. With <code>features_per_group > 1</code>, features grouped together are treated differently from features across groups, breaking strict invariance. The ensemble recovers this: each estimator applies a different random feature shuffle before grouping, so the averaged prediction is approximately permutation-invariant across the 8 passes even when individual passes are not.</p>
+  </div>
+</details>
 
 <div class="vis-callout">
   <div class="icon">③</div>
@@ -598,14 +743,132 @@ footer {
 
 <div class="wrap">
 <p>
-  A surprising design choice for tabular foundation models arises in how it regression is handled. Instead of predicting a single number, the model outputs a <em>full probability distribution</em> over possible target values. It does this by turning regression into a classification problem. The mechanism is cleaner than it might sound.
+  A surprising design choice for tabular foundation models arises in how regression is handled. Instead of predicting a single number, the model outputs a <em>full probability distribution</em> over possible target values. It does this by turning regression into a classification problem. The mechanism is cleaner than it might sound.
 </p>
+
+<div class="new-block">
+  <p style="margin:0 0 0.5rem;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">Scope note.</strong> This section describes TabPFN v2's bar distribution loss. Other tabular foundation models use different loss functions — TabICL v2, for example, takes a different approach. The principle of outputting a predictive distribution rather than a point estimate is broadly shared, but the specific discretisation mechanism described here is TabPFN v2's design.</p>
+</div>
+
+<div class="new-block" style="max-width:var(--max);">
+  <p style="margin:0 0 0.5rem;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">What is NLL?</strong> NLL stands for Negative Log-Likelihood. To understand it, start with the question: "How probable does the model think the true answer is?" That probability is the likelihood. If the model assigns high probability to the correct target value, it is doing well; if it spreads probability elsewhere, it is doing poorly. The log of a probability is always negative or zero (since probabilities are between 0 and 1), so a model that assigns probability 1.0 to the right answer gets log(1) = 0 — a perfect score. A model that assigns very low probability gets a very large negative log, and negating that gives a large positive loss. Minimising NLL therefore means training the model to assign high probability to what actually happened. It is the standard way to train any probabilistic model.</p>
+</div>
 
 <h3>Building the buckets</h3>
 
 <p>
   The target range is divided into <em>N</em> buckets. The borders between buckets are not evenly spaced, rather they are chosen so that each bucket has <em>equal probability under the prior</em> (i.e., equal to 1/N). In practice this means computing quantiles of a large prior-data sample. Equal-probability buckets mean the softmax over buckets starts with a uniform prior, which is well-calibrated: before seeing any data, all outcomes are equally likely.
 </p>
+
+<p class="new" style="background:#fffacd;outline:2px solid #e8d800;border-radius:6px;padding:0.7rem 1rem;max-width:var(--max);margin:0.8rem auto;">
+  A key point that is easy to miss: <strong>the same bin boundaries are shared across all datasets</strong>. They are computed once from a large pooled sample drawn from the prior distribution — spanning many different synthetic datasets with different target ranges. Individual dataset targets are then normalised (z-scored) before being mapped to these shared bins, so the bins always cover the relevant range regardless of the dataset's original scale. This also means that while each dataset has its own unique distribution of targets, they all speak the same "binned language" during training. Discretisation of this kind is a well-established technique in statistics and machine learning; with a large enough N, even continuous distributions can be represented accurately. In the bar distribution, N is chosen so that the expected error from discretisation is negligible relative to the model's uncertainty — and because predictions are formed by taking the mean or median of the distribution rather than the bin centre, the approach is even more accurate than it might first appear.
+</p>
+
+<details class="adv-box new">
+  <summary><span class="adv-tag">Advanced</span> Shared bins: how multiple prior datasets converge to one set of boundaries</summary>
+  <div class="adv-body">
+    <p>The bin boundaries are a global property of the prior, not of any individual dataset. To see why this matters — and how it works — step through the animation below.</p>
+    <canvas id="bins-canvas" height="220" style="border-radius:6px;margin:0.8rem 0;"></canvas>
+    <p>Each of four synthetic prior datasets has a different target distribution (shown as coloured histograms). After z-score normalisation, all are mapped into a shared space. The bin boundaries (vertical lines) are then placed at the quantiles of the <em>pooled</em> normalised distribution — ensuring equal probability mass per bin under the prior. During training, every dataset's target values are discretised using these same boundaries. The model therefore always outputs logits over the same N buckets, regardless of which dataset it is processing.</p>
+    <script>
+    (function(){
+      const cv = document.getElementById('bins-canvas');
+      if (!cv) return;
+      const dpr = window.devicePixelRatio || 1;
+      cv.width  = cv.offsetWidth * dpr;
+      cv.height = 220 * dpr;
+      const ctx = cv.getContext('2d');
+      ctx.scale(dpr, dpr);
+      const W = cv.offsetWidth, H = 220;
+
+      // Four prior datasets with different distributions
+      const datasets = [
+        { label: 'Dataset A (right-skewed)', color: '#7c6af5', mean: 0.3, std: 0.25 },
+        { label: 'Dataset B (centered)',     color: '#2ec4b6', mean: 0.5, std: 0.15 },
+        { label: 'Dataset C (wide spread)',  color: '#e8a623', mean: 0.5, std: 0.35 },
+        { label: 'Dataset D (left peak)',    color: '#e8604c', mean: 0.7, std: 0.18 },
+      ];
+
+      function gaussian(x, mean, std) {
+        return Math.exp(-0.5 * ((x - mean) / std) ** 2) / (std * Math.sqrt(2 * Math.PI));
+      }
+
+      const N_BINS = 10;
+      const padL = 40, padR = 20, padT = 30, padB = 50;
+      const plotW = W - padL - padR, plotH = H - padT - padB;
+
+      // Background
+      ctx.fillStyle = '#0f0f15'; ctx.fillRect(0, 0, W, H);
+
+      // Title
+      ctx.fillStyle = 'rgba(200,190,255,0.55)'; ctx.font = '10px IBM Plex Mono';
+      ctx.textAlign = 'center';
+      ctx.fillText('Prior datasets with different target distributions → shared equal-probability bins', W/2, 16);
+
+      // Draw each dataset distribution
+      const maxDens = 4.0;
+      datasets.forEach((ds, di) => {
+        ctx.beginPath();
+        for (let px = 0; px <= plotW; px++) {
+          const x = px / plotW;
+          const d = gaussian(x, ds.mean, ds.std);
+          const py = padT + plotH * (1 - d / maxDens);
+          if (px === 0) ctx.moveTo(padL + px, py);
+          else ctx.lineTo(padL + px, py);
+        }
+        ctx.strokeStyle = ds.color + '90'; ctx.lineWidth = 1.5; ctx.stroke();
+      });
+
+      // Compute pooled distribution for quantile bins
+      const bins = N_BINS;
+      const borders = [];
+      for (let b = 0; b <= bins; b++) {
+        borders.push(b / bins);
+      }
+
+      // Draw bin boundaries
+      borders.forEach((b, i) => {
+        if (i === 0 || i === bins) return;
+        const x = padL + b * plotW;
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(x, padT); ctx.lineTo(x, padT + plotH); ctx.stroke();
+        ctx.setLineDash([]);
+      });
+
+      // Shade alternating bins
+      for (let b = 0; b < bins; b++) {
+        const x1 = padL + borders[b] * plotW;
+        const x2 = padL + borders[b+1] * plotW;
+        ctx.fillStyle = b % 2 === 0 ? 'rgba(124,106,245,0.05)' : 'rgba(46,196,182,0.04)';
+        ctx.fillRect(x1, padT, x2 - x1, plotH);
+      }
+
+      // X axis
+      ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(padL, padT + plotH); ctx.lineTo(padL + plotW, padT + plotH); ctx.stroke();
+      [0, 0.25, 0.5, 0.75, 1.0].forEach(v => {
+        ctx.fillStyle = 'rgba(160,150,200,0.5)'; ctx.font = '8px IBM Plex Mono'; ctx.textAlign='center';
+        ctx.fillText(v.toFixed(2), padL + v * plotW, padT + plotH + 12);
+      });
+      ctx.fillStyle = 'rgba(140,130,180,0.4)'; ctx.font='8px IBM Plex Mono'; ctx.textAlign='center';
+      ctx.fillText('normalised target value (z-scored)', padL + plotW/2, H - 8);
+
+      // Legend
+      datasets.forEach((ds, i) => {
+        const lx = padL + (i % 2) * (plotW/2), ly = padT + plotH + 22 + Math.floor(i/2)*14;
+        ctx.fillStyle = ds.color; ctx.fillRect(lx, ly, 8, 6);
+        ctx.fillStyle = 'rgba(200,190,230,0.6)'; ctx.font='7px IBM Plex Mono'; ctx.textAlign='left';
+        ctx.fillText(ds.label, lx + 11, ly + 4);
+      });
+
+      // Bin label
+      ctx.fillStyle = 'rgba(255,255,255,0.2)'; ctx.font='8px IBM Plex Mono'; ctx.textAlign='center';
+      ctx.fillText(`${bins} equal-probability bins (shared across all datasets)`, W/2, padT - 8);
+    })();
+    </script>
+  </div>
+</details>
 
 <p>
   The model outputs a logit vector of length <em>N</em>. A softmax turns this into a probability histogram - a bar chart where each bar represents the probability that the true target falls in that bucket. This is the "bar distribution" or Riemann distribution.
@@ -661,59 +924,23 @@ footer {
 
 <div class="wrap">
 <p>
-  This is the most important section...
+  This is the most important section.
 </p>
 
 <p>
-  The model's weights do not store data. They do not memorise which synthetic datasets they have seen, or look them up at inference time. What the weights store is an <em>algorithm</em>: a compressed function that maps "what a dataset looks like" to "what the posterior predictive distribution should be."
-</p>
-
-<h3>The formal objective</h3>
-
-<p>
-  During pretraining, the model minimises the expected NLL of masked labels across all datasets in the prior:
-</p>
-</div>
-
-<div class="eq wrap">
-  <span class="label">TabPFN training objective (PFN paper §3)</span>
-  \[
-  \min_{\theta}\ \mathbb{E}_{D \sim p(D)}\left[-\log q_{\theta}\left(y_{\mathrm{test}} \mid x_{\mathrm{test}}, D_{\mathrm{train}}\right)\right]
-  \]
-  <span class="note">Minimised over randomly sampled datasets D from the prior, with one label masked as the prediction target.</span>
-</div>
-
-<div class="wrap">
-<p>
-  By Insight 1 of the PFN paper,<sup><a href="#ref2">[2]</a></sup> minimising this objective is equivalent to minimising the KL divergence between the model's output and the true Bayesian posterior predictive distribution, averaged over all datasets in the prior:
-</p>
-</div>
-
-<div class="eq wrap">
-  <span class="label">PFN paper Insight 1 — equivalence to KL minimisation</span>
-  \[
-  \mathbb{E}_{D}\left[\mathrm{KL}\left(p(y \mid x, D)\ \|\ q_{\theta}(y \mid x, D)\right)\right] \to 0
-  \]
-  <span class="note">At the optimum, the model's output q<sub>θ</sub> equals the true posterior predictive p(y | x, D) for every dataset in the prior.</span>
-</div>
-
-<div class="wrap">
-<p>
-  This is a remarkable result. It says that if you train a neural network to predict masked labels across a sufficiently diverse distribution of synthetic datasets, the network will converge to a function that <em>is</em> Bayesian inference for that prior, not an approximation of it, but the exact posterior predictive. The weights have learned to compress the algorithm for computing posteriors into a single forward pass.
-</p>
-
-<h3>What the weights encode</h3>
-
-<p>
-  A useful way to think about this: the weights have seen 130 million datasets with radically different statistical structures: linear and nonlinear, high-noise and low-noise, sparse and dense, clustered and diffuse. For each one, they have learned what the correct predictive distribution looks like. But they cannot possibly store all 130 million posteriors explicitly. What they store instead is a <em>generative model of posteriors</em>: a function that, given the fingerprint of a new dataset, can construct the appropriate posterior from scratch.
+  The model's weights do not store data. They do not memorise which synthetic datasets they have seen, or look them up at inference time. What the weights store is an <em>algorithm</em>: a compressed function that maps "what a dataset looks like" to "what the predictive distribution should be."
 </p>
 
 <p>
-  At inference time, the attention mechanism is what performs the fingerprint-reading. When the query row's label slot attends to training rows via row attention, it is asking: which training examples are most relevant to this query, and what do their labels say? When column attention runs on a training row, it is asking: given these features and this label, what pattern do they represent? By the time the information has propagated through <em>L</em> layers of alternating row and column attention, the label slot of the query row holds a rich encoding of the question: "given that the training set looks like this, what should the label be?"
+  Here is what that means in plain terms. During pretraining, the model sees ~130 million datasets. For each one, a label is masked, and the model is trained to predict it from the remaining context. Over time the model discovers that certain patterns in the training rows reliably predict outcomes — linear relationships, clusters, interaction effects — and it learns to recognise those patterns and apply the appropriate predictive logic. By the end of training, the weights have compressed this learning into a function that can identify the statistical character of any new dataset and output a well-calibrated prediction in a single forward pass.
 </p>
 
 <p>
-  The decoder then reads this encoding and produces a distribution over possible answers. No memory lookup. No similarity search over stored datasets. Just a forward pass which happens to implement Bayesian inference.
+  At inference time, the attention mechanism is the instrument that reads the dataset's character. When the query row's label slot attends to training rows via row attention, it is asking: which training examples are most relevant to this query? When column attention runs on a training row, it is asking: what pattern do these features and this label represent together? By the time information has propagated through <em>L</em> layers of alternating attention and MLP, the label slot of the query row holds a rich encoding of the question "given that the training set looks like this, what should the label be?" — and the decoder reads that encoding to produce the output distribution.
+</p>
+
+<p>
+  No memory lookup. No similarity search over stored datasets. Just a forward pass that has been trained to implement good predictive reasoning.
 </p>
 </div>
 
@@ -721,19 +948,25 @@ footer {
   "The model doesn't store data. It stores the algorithm for reasoning about data."
 </div>
 
-<div class="wrap">
-<h3>The connection to kernel methods</h3>
-
-<p>
-  There is a useful analogy to Gaussian processes. In GP regression, you specify a kernel function that measures similarity between data points, and the posterior is a weighted combination of training labels where the weights are determined by similarity to the query. TabPFN does something structurally similar; the row-attention weights are essentially a learned, data-dependent kernel. High attention weight means "this training example is informative about this query." Low weight means the opposite.
-</p>
-
-<p>
-  The difference is that in a GP the kernel is fixed and hand-specified (RBF, Matérn, etc.). In TabPFN, the notion of "similarity" is itself learned from the pretraining distribution. The model has seen datasets where features 2 and 7 matter more than features 1 and 3, and others where the opposite is true. It has learned to <em>read the current dataset</em> and infer which features should drive similarity, adjusting the effective kernel on the fly, conditioned on what it observes.
-</p>
-
-
-</div>
+<details class="adv-box new">
+  <summary><span class="adv-tag">Advanced</span> The formal connection to Bayesian inference (PFN paper Insight 1)</summary>
+  <div class="adv-body">
+    <p>The informal description above has a precise mathematical grounding in the PFN paper (Müller et al., 2022).<sup><a href="#ref2">[2]</a></sup> During pretraining, the model minimises the expected NLL of masked labels across all datasets sampled from the prior:</p>
+    <div class="eq">
+      <span class="label">TabPFN training objective (PFN paper §3)</span>
+      \[\min_{\theta}\ \mathbb{E}_{D \sim p(D)}\left[-\log q_{\theta}\left(y_{\mathrm{test}} \mid x_{\mathrm{test}}, D_{\mathrm{train}}\right)\right]\]
+      <span class="note">Minimised over randomly sampled datasets D from the prior, with one label masked as the prediction target.</span>
+    </div>
+    <p>By Insight 1 of the paper, minimising this objective is equivalent to minimising the KL divergence between the model's output and the true Bayesian posterior predictive distribution, averaged over all datasets in the prior:</p>
+    <div class="eq">
+      <span class="label">PFN paper Insight 1 — equivalence to KL minimisation</span>
+      \[\mathbb{E}_{D}\left[\mathrm{KL}\left(p(y \mid x, D)\ \|\ q_{\theta}(y \mid x, D)\right)\right] \to 0\]
+      <span class="note">At the optimum, the model's output q<sub>θ</sub> equals the true posterior predictive p(y | x, D) for every dataset in the prior.</span>
+    </div>
+    <p>This is a strong result: train a network to predict masked labels across a diverse enough prior, and it converges to the exact Bayesian posterior predictive — not an approximation. The weights have learned to compress the algorithm for computing posteriors into a single forward pass.</p>
+    <p><strong>The connection to kernel methods.</strong> There is also a useful analogy to Gaussian processes. In GP regression, you specify a kernel function that measures similarity between data points, and predictions are weighted combinations of training labels where weights reflect similarity to the query. TabPFN's row-attention weights play the same role: high weight means "this training example is informative about this query." The difference is that in a GP the kernel is fixed and hand-specified (RBF, Matérn, etc.), whereas here the notion of "similarity" is itself learned from the pretraining distribution — and adjusted on the fly for each new dataset the model reads.</p>
+  </div>
+</details>
 
 <div class="vis-callout">
   <div class="icon">⑤</div>
