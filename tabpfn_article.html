@@ -632,7 +632,7 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 </p>
 
 <p class="new" style="background:#fffacd;outline:2px solid #e8d800;border-radius:6px;padding:0.7rem 1rem;max-width:var(--max);margin:0.8rem auto;">
-  <strong>Advanced note:</strong> There are deeper reasons an MLP cannot serve as a general-purpose tabular foundation model. The first is subtle but fundamental: a plain MLP is <em>rotationally invariant</em>: applying any rotation to the feature matrix produces the same learned function. This sounds harmless, but it is not (see Grinsztajn et al. (2022)<sup><a href="#ref5">[5]</a></sup>). The embedding step in TabPFN explicitly breaks rotational invariance by learning a separate projection for each feature position. Second, a plain MLP assumes a fixed number of input dimensions tied to specific positions, it cannot be pretrained across datasets with different schemas. Attention has no such constraint; each token attends to all others regardless of column count or order.
+  <strong>Advanced note:</strong> There are deeper reasons an MLP cannot serve as a general-purpose tabular foundation model. The first is subtle but fundamental. A plain MLP is <em>rotationally invariant</em>: applying any rotation to the feature matrix produces the same learned function. This sounds harmless, but it is not (see Grinsztajn et al. (2022)<sup><a href="#ref5">[5]</a></sup>). The embedding step in TabPFN explicitly breaks rotational invariance by learning a separate projection for each feature position. Second, a plain MLP assumes a fixed number of input dimensions tied to specific positions, it cannot be pretrained across datasets with different schemas. Attention has no such constraint; each token attends to all others regardless of column count or order.
 </p>
 
 <p>
@@ -694,7 +694,7 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 <details class="adv-box new">
   <summary><span class="adv-tag">Advanced</span> From raw table to token grid: the full preprocessing and encoding pipeline</summary>
   <div class="adv-body">
-    <p>The encoding step bridges the familiar tabular world (rows and columns of numbers) and the transformer world (sequences of embedding vectors). Understanding it also resolves the tension between the attention visualization — which shows named features attending to each other — and the architecture diagram, which refers to <em>feature groups</em> and a tensor of shape <code>(batch, seq_len, num_feature_groups+1, d_model)</code>. Step through the four stages in the interactive illustration below.</p>
+    <p>The encoding step bridges the familiar tabular world (rows and columns of numbers) and the transformer world (sequences of embedding vectors). Understanding it also resolves the tension between the attention visualization, which shows named features attending to each other, and the architecture diagram, which refers to <em>feature groups</em> and a tensor of shape <code>(batch, seq_len, num_feature_groups+1, d_model)</code>. Step through the four stages in the interactive illustration below.</p>
 
     <div style="margin:1rem 0;border-radius:8px;overflow:hidden;border:1px solid var(--rule);">
       <iframe src="tabpfn_visualizations.html?tab=5"
@@ -704,7 +704,7 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
     </div>
     <p style="font-size:0.82rem;color:var(--ink-soft);font-family:var(--mono);margin-top:0.4rem;"><a href="tabpfn_visualizations.html?tab=5" target="_blank" style="color:var(--accent);">Open full screen ↗</a></p>
 
-    <p><strong>On permutation invariance.</strong> With <code>features_per_group=1</code> (the TabPFN v2 default), every feature is its own isolated token. Swapping two columns produces the same set of tokens in a different order, and since column attention has no positional encoding, the output is identical — the model is exactly permutation-invariant per forward pass. With <code>features_per_group > 1</code>, features grouped together are treated differently from features across groups, breaking strict invariance. The ensemble recovers this: each estimator applies a different random feature shuffle before grouping, so the averaged prediction is approximately permutation-invariant across the 8 passes even when individual passes are not.</p>
+    <p><strong>On permutation invariance.</strong> With <code>features_per_group=1</code>, every feature is its own isolated token. Swapping two columns produces the same set of tokens in a different order, and since column attention has no positional encoding, the output is identical, the model is exactly permutation-invariant per forward pass. With <code>features_per_group > 1</code>, features grouped together are treated differently from features across groups, breaking strict invariance. Ensembling recovers this: each estimator applies a different random feature shuffle before grouping, so the averaged prediction is approximately permutation-invariant across the ensemble passes even when individual passes are not.</p>
   </div>
 </details>
 
