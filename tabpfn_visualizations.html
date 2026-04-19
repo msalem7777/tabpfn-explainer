@@ -478,7 +478,7 @@ function showSection(i) {
   requestAnimationFrame(() => {
     if (i===2) drawArch();
     if (i===3) { initBarDist(); }
-    if (i===4) { learnEnsureCanvas(); learnReset(); }
+    if (i===4) { initKernel(); }
     if (i===5) { encInit(); }
   });
 }
@@ -2071,37 +2071,6 @@ function learnReset() {
     'Press <strong>Play</strong> to see how the model learns to perform Bayesian inference.';
 }
 
-if (needsInit) {
-    learnCanvas.width = pixelW;
-    learnCanvas.height = pixelH;
-    lCtx = learnCanvas.getContext('2d');
-    lCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
-}
-
-function learnReset() {
-  clearTimeout(learnTimer);
-  if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(learnRaf);
-  learnRunning = false;
-  learnT = 0;
-  learnPhase = 0;
-  document.getElementById('learn-play-btn').textContent = '▶ Play';
-  learnEnsureCanvas();
-  if (!learnCanvas || !lCtx) return;
-  lCtx.clearRect(0, 0, learnW, 360);
-  document.getElementById('learn-caption').innerHTML =
-    'Press <strong>Play</strong> to see how the model learns to perform Bayesian inference.';
-}
-
-function learnDraw(t) {
-  if (!learnCanvas || !lCtx) return;
-  learnEnsureCanvas();   // important: keep width current after tab/iframe/layout changes
-
-  const W = learnW;
-  const H = 360;
-
-  lCtx.clearRect(0, 0, W, H);
-  
 function learnPlay() {
   if (learnRunning) {
     learnRunning = false;
@@ -2417,7 +2386,7 @@ let encInitialized = false;
 const ENC_CAPTIONS = [
   '① Raw table. Each row contains heterogeneous features: a continuous float (age=34), a large numeric (income=52k), a categorical string (debt="low"), and a binary label (y=1). A query row has an unknown label (?). An MLP requires these to be heavily preprocessed into a fixed numeric format before training. Here, all types enter the model natively through feature tokenization.',
   '② Per-feature distribution transforms (one configuration per estimator). Each numeric column is independently reshaped: quantile normalisation maps skewed distributions to uniform [0,1] or normal output; the squashing scaler applies robust centering followed by soft clipping to handle outliers. Constant features are dropped (RemoveConstantFeaturesStep). Categorical columns receive ordinal encoding with randomly shuffled category order. A fingerprint feature, a hash of each row, is appended to help the model distinguish otherwise identical rows.',
-  '③ Global SVD transform · feature shuffle. Some estimators apply Truncated SVD across all features after the per-feature step: the original features are kept and a set of principal components (n_features/4 components) is appended alongside them, capturing global linear structure. Then each of the 8 ensemble estimators applies a different cyclic rotation of the feature column order (ShuffleFeaturesStep). Averaged across M different shuffles, the prediction becomes approximately permutation-invariant. The model\'s output no longer depends on which column was listed first in your dattaset.',
+  '③ Global SVD transform · feature shuffle. Some estimators apply Truncated SVD across all features after the per-feature step: the original features are kept and a set of principal components (n_features/4 components) is appended alongside them, capturing global linear structure. Then each of the ensemble estimators applies a different cyclic rotation of the feature column order (ShuffleFeaturesStep). Averaged across M different shuffles, the prediction becomes approximately permutation-invariant. The model\'s output no longer depends on which column was listed first in your dattaset.',
   '④ Linear projection → token grid. Each (preprocessed) scalar feature value x is multiplied by a learned weight vector W ∈ ℝ^d_model to produce a d-dimensional embedding: token = W · x. With features_per_group=1 (TabPFN v2 default), each feature is its own token. The label y goes through a separate y_encoder. The result is a token grid of shape (seq_len, num_feature_groups + 1, d_model) where seq_len = n_train_rows + n_query_rows. This is what row and column attention operate on — dense vectors in a shared space, not raw heterogeneous scalars.',
 ];
 
