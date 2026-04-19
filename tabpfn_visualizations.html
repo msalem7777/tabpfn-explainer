@@ -1431,7 +1431,7 @@ function drawArch() {
 
   // ── STAGE 5a: Regression output ──
   const decX = 668, decYreg = 108, decW = 138, decH = 100;
-  const regGrp = clickable(svgEl('g'), `Regression output (BarDistribution): the extracted label-slot embedding is passed through a linear decoder head to produce logits over N buckets. A softmax gives probabilities for each bucket — forming the Riemann/bar distribution. This is a full predictive distribution over the target value, not just a point estimate. The NLL loss is −log p(y_true | bucket).`);
+  const regGrp = clickable(svgEl('g'), `Regression output (BarDistribution): the extracted label-slot embedding is passed through a linear decoder head to produce logits over N buckets. A softmax gives probabilities for each bucket, forming the Riemann/bar distribution. This is a full predictive distribution over the target value, not just a point estimate. The NLL loss is −log p(y_true | bucket).`);
   regGrp.appendChild(rect(decX, decYreg, decW, decH, '#1a1220','#e8604c','1','8'));
 
   // Mini bar chart
@@ -1698,7 +1698,7 @@ function bdDrawBorders() {
   });
   bdLabel(bdCtx, padL+plotW/2, H-8, 'target y (normalised to 0–1)', 9, 'rgba(120,120,160,0.4)');
 
-  bdCaption(`<strong style="color:var(--accent)">Step 1 — Build borders.</strong> The target range is split into N=${BD_N} buckets. Borders are chosen so each bucket has <em>equal probability under the prior</em> (1/N each) — derived from quantiles of a large prior-data sample. This is what makes the softmax loss well-calibrated: all classes start equally likely before any data is seen.`);
+  bdCaption(`<strong style="color:var(--accent)">Step 1 — Build borders.</strong> The target range is split into N buckets. Borders are chosen so each bucket has <em>equal probability under the prior</em> (1/N each) — derived from quantiles of a large prior-data sample. This is what makes the softmax loss well-calibrated: all classes start equally likely before any data is seen.`);
 }
 
 // ── Frame 1: Map y → bucket ────────────────────────────────────
@@ -2384,7 +2384,7 @@ let encCurrentStage = 0;
 let encInitialized = false;
 
 const ENC_CAPTIONS = [
-  '① Raw table. Each row contains heterogeneous features: a continuous float (age=34), a large numeric (income=52k), a categorical string (debt="low"), and a binary label (y=1). A query row has an unknown label (?). An MLP requires these to be heavily preprocessed into a fixed numeric format before training — here, all types enter the model natively through feature tokenisation.',
+  '① Raw table. Each row contains heterogeneous features: a continuous float (age=34), a large numeric (income=52k), a categorical string (debt="low"), and a binary label (y=1). A query row has an unknown label (?). An MLP requires these to be heavily preprocessed into a fixed numeric format before training. Here, all types enter the model natively through feature tokenization.',
   '② Per-feature distribution transforms (one configuration per estimator). Each numeric column is independently reshaped: quantile normalisation maps skewed distributions to uniform [0,1] or normal output; the squashing scaler applies robust centering followed by soft clipping to handle outliers. Constant features are dropped (RemoveConstantFeaturesStep). Categorical columns receive ordinal encoding with randomly shuffled category order. A fingerprint feature — a hash of each row — is appended to help the model distinguish otherwise identical rows.',
   '③ Global SVD transform · feature shuffle. Some estimators apply Truncated SVD across all features after the per-feature step: the original features are kept and a set of principal components (n_features/4 components) is appended alongside them, capturing global linear structure. Then each of the 8 ensemble estimators applies a different cyclic rotation of the feature column order (ShuffleFeaturesStep). Averaged across 8 different shuffles, the prediction becomes approximately permutation-invariant — the model\'s output no longer depends on which column was listed first in your CSV.',
   '④ Linear projection → token grid. Each (preprocessed) scalar feature value x is multiplied by a learned weight vector W ∈ ℝ^d_model to produce a d-dimensional embedding: token = W · x. With features_per_group=1 (TabPFN v2 default), each feature is its own token. The label y goes through a separate y_encoder. The result is a token grid of shape (seq_len, num_feature_groups + 1, d_model) where seq_len = n_train_rows + n_query_rows. This is what row and column attention operate on — dense vectors in a shared space, not raw heterogeneous scalars.',
