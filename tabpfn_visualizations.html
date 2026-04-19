@@ -2266,20 +2266,31 @@ function learnDraw(t) {
       const ax2 = wb.bx - 4, ay2 = wb.cy;
       const ax = ax1 + (ax2-ax1)*arrowProgress;
       const ay = ay1 + (ay2-ay1)*arrowProgress;
+
       lCtx.strokeStyle = `${ds.color}88`;
       lCtx.lineWidth = 1.2;
       lCtx.setLineDash([4,3]);
-      lCtx.beginPath(); lCtx.moveTo(ax1, ay1); lCtx.lineTo(ax, ay); lCtx.stroke();
+      lCtx.beginPath();
+      lCtx.moveTo(ax1, ay1);
+      lCtx.lineTo(ax, ay);
+      lCtx.stroke();
       lCtx.setLineDash([]);
-      lCtx.beginPath(); lCtx.arc(ax, ay, 3.5, 0, Math.PI*2);
-      lCtx.fillStyle = ds.color; lCtx.fill();
+
+      lCtx.beginPath();
+      lCtx.arc(ax, ay, 3.5, 0, Math.PI*2);
+      lCtx.fillStyle = ds.color;
+      lCtx.fill();
     }
 
     // PPD for this dataset (below scatter)
     const ppdAlpha = Math.min(1, Math.max(0, (dsProgress - 0.3) / 0.3));
+
     const pW = 80, pH = 48;
-    const pX = 16, pY = sY + sH + 26;   // fixed position: no slide-in
+    const pX = 16 + slideX;
+    const pY = sY + sH + 26;
+
     lDrawPPD(ds.ppd, ds.color, pX, pY, pW, pH, ppdAlpha, true);
+
     if (ppdAlpha > 0.5) {
       lSans(pX + pW/2, pY - 10, 'true PPD', 8, `${ds.color}99`, 'center');
       lSans(pX + pW/2, pY + pH + 8, 'p(y|x,D)', 8, 'rgba(140,130,200,0.45)', 'center');
