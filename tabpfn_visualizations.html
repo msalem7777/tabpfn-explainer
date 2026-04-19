@@ -2011,7 +2011,7 @@ function initBarDist() {
 // The central visual metaphor: the weights are not a database —
 // they are a compressed function from "dataset fingerprint" to "posterior".
 
-let learnCanvas, lCtx;
+let learnCanvas, lCtx, learnW = 0;
 let learnTimer = null;
 let learnRunning = false;
 let learnT = 0;         // global animation time (frames)
@@ -2090,7 +2090,8 @@ function learnEnsureCanvas() {
   learnCanvas = document.getElementById('learn-canvas');
   if (!learnCanvas || learnCanvas.offsetWidth === 0) { learnCanvas = null; return; }
   const dpr = window.devicePixelRatio || 1;
-  learnCanvas.width  = learnCanvas.offsetWidth * dpr;
+  learnW = learnCanvas.offsetWidth;
+  learnCanvas.width  = learnW * dpr;
   learnCanvas.height = 360 * dpr;
   lCtx = learnCanvas.getContext('2d');
   lCtx.scale(dpr, dpr);
@@ -2176,8 +2177,8 @@ function lDrawPPD(ppd, col, bx, by, bw, bh, alpha, highlight) {
 }
 
 // Draw the model weights box (centre)
-function lDrawWeights(W, H, pulse) {
-  const cx = W * 0.6, cy = H * 0.5;
+function lDrawWeights(W, H, pulse, wCX) {
+  const cx = wCX || W * 0.55, cy = H * 0.5;
   const bw = 110, bh = 130;
   const bx = cx - bw/2, by = cy - bh/2;
 
@@ -2220,7 +2221,8 @@ function lDrawWeights(W, H, pulse) {
 }
 
 function learnDraw(t) {
-  const W = learnCanvas.offsetWidth, H = 360;
+  if (!learnCanvas || !lCtx) return;
+  const W = learnW || learnCanvas.offsetWidth, H = 360;
   lCtx.clearRect(0, 0, W, H);
 
   // Background
@@ -2232,75 +2234,68 @@ function learnDraw(t) {
   const trainT = t;           // 0..299
   const inferT = t - 300;     // 0..199
 
+  // ── Layout constants relative to W ──────────────────────────────
+  const wCX  = W * 0.55;   // weights box centre-x (was 0.6, tighter)
+  const ppdX = W - 130;    // PPD box left edge for inference
+
   // ── TRAINING PHASE ─────────────────────────────────────────────
   if (isTraining) {
-    // Dataset index cycles every 50 frames
     const dsIdx = Math.floor(trainT / 60) % LEARN_DATASETS.length;
-    const dsProgress = (trainT % 60) / 60;   // 0..1 within this dataset
+    const dsProgress = (trainT % 60) / 60;
     const ds = LEARN_DATASETS[dsIdx];
-    const totalSeen = dsIdx * 26_000_000;    // ~130M / 5 datasets
 
-    // Section label
-    lSans(W*0.3, 18, 'Training phase', 12, 'rgba(200,190,255,0.55)', 'center', '500');
+    lSans(wCX, 18, 'Training phase', 12, 'rgba(200,190,255,0.55)', 'center', '500');
+    lLabel(wCX, H-12, `datasets seen: ~${Math.floor(trainT/300*130)}M / 130M`, 9, 'rgba(140,130,200,0.45)', 'center');
 
-    // Dataset count
-    const count = Math.floor((trainT / 300) * 130) + 'M';
-    lLabel(W*0.3, H-12, `datasets seen: ~${Math.floor(trainT/300*130)}M / 130M`, 9, 'rgba(140,130,200,0.45)', 'center');
-
-    // ── Incoming dataset (left side) ──
+    // Incoming dataset (left side)
     const dsAlpha = Math.min(1, dsProgress * 4);
-    const slideX = Math.max(0, (1 - dsProgress*2)) * (-80);  // slides in from left
-    const sW = 100, sH = 70;
-    const sX = 20 + slideX, sY = H/2 - sH/2 - 40;
+    const slideX = Math.max(0, (1 - dsProgress*2)) * (-80);
+    const sW = 90, sH = 60;
+    const sX = 16 + slideX, sY = H/2 - sH/2 - 30;
 
     lDrawScatter(ds.pts, ds.color, sX, sY, sW, sH, dsAlpha);
     lSans(sX + sW/2, sY - 12, ds.label, 9, `${ds.color}cc`, 'center');
     lSans(sX + sW/2, sY + sH + 10, 'D ~ p(D)', 9, 'rgba(140,130,200,0.55)', 'center');
 
-    // ── Arrow: dataset → weights ──
+    // Arrow: dataset → weights
     const arrowProgress = Math.min(1, (dsProgress - 0.15) / 0.4);
     if (arrowProgress > 0) {
       const ax1 = sX + sW + 4, ay1 = sY + sH/2;
-      const ax2 = W*0.6 - 58, ay2 = H/2;
+      const ax2 = wCX - 58, ay2 = H/2;
       const ax = ax1 + (ax2-ax1)*arrowProgress;
       const ay = ay1 + (ay2-ay1)*arrowProgress;
-
-      // Dashed arrow
       lCtx.strokeStyle = `${ds.color}88`;
       lCtx.lineWidth = 1.2;
       lCtx.setLineDash([4,3]);
       lCtx.beginPath(); lCtx.moveTo(ax1, ay1); lCtx.lineTo(ax, ay); lCtx.stroke();
       lCtx.setLineDash([]);
-
-      // Moving dot
       lCtx.beginPath(); lCtx.arc(ax, ay, 3.5, 0, Math.PI*2);
       lCtx.fillStyle = ds.color; lCtx.fill();
     }
 
-    // ── PPD for this dataset (between scatter and weights) ──
+    // PPD for this dataset (below scatter)
     const ppdAlpha = Math.min(1, Math.max(0, (dsProgress - 0.3) / 0.3));
-    const pW = 90, pH = 55;
-    const pX = 20 + slideX, pY = sY + sH + 30;
+    const pW = 80, pH = 48;
+    const pX = 16 + slideX, pY = sY + sH + 26;
     lDrawPPD(ds.ppd, ds.color, pX, pY, pW, pH, ppdAlpha, true);
     if (ppdAlpha > 0.5) {
       lSans(pX + pW/2, pY - 10, 'true PPD', 8, `${ds.color}99`, 'center');
       lSans(pX + pW/2, pY + pH + 8, 'p(y|x,D)', 8, 'rgba(140,130,200,0.45)', 'center');
     }
 
-    // ── Weights box ──
+    // Weights box
     const pulse = Math.sin(dsProgress * Math.PI * 2) * 0.5 + 0.5;
-    lDrawWeights(W, H, pulse * 0.4);
+    lDrawWeights(W, H, pulse * 0.4, wCX);
 
-    // ── NLL arrow + loss value ──
+    // NLL + gradient
     const lossAlpha = Math.min(1, Math.max(0, (dsProgress - 0.5) / 0.25));
     if (lossAlpha > 0) {
       const lossVal = (2.8 - (trainT/300)*1.6 + (Math.random()-0.5)*0.1).toFixed(3);
-      const lx = W*0.6 - 5, ly = H*0.5 - 65;
+      const lx = wCX - 5, ly = H*0.5 - 65;
       lSans(lx, ly, `NLL = ${lossVal}`, 10, `rgba(94,203,138,${lossAlpha*0.9})`, 'center');
       lSans(lx, ly+14, '↓ gradient step', 8, `rgba(94,203,138,${lossAlpha*0.6})`, 'center');
     }
 
-    // Caption update
     if (t % 60 === 0) {
       document.getElementById('learn-caption').innerHTML =
         `<strong style="color:var(--accent)">Training — dataset ${dsIdx+1}/${LEARN_DATASETS.length} (cycle).</strong> ` +
@@ -2311,23 +2306,23 @@ function learnDraw(t) {
 
   // ── INFERENCE PHASE ───────────────────────────────────────────
   if (isInference) {
-    const inf = Math.min(1, inferT / 180);  // 0..1 over 180 frames
+    const inf = Math.min(1, inferT / 180);
     const ds = INFER_DATASET;
 
     lSans(W/2, 18, 'Inference — no retraining', 12, 'rgba(200,220,200,0.6)', 'center', '500');
 
-    // ── Weights (now trained, no pulse) ──
-    const wb = lDrawWeights(W, H, 0.0);
+    // Weights (trained, no pulse)
+    const wb = lDrawWeights(W, H, 0.0, wCX);
 
-    // ── New dataset arrives on left ──
+    // New dataset arrives on left
     const arriveAlpha = Math.min(1, inf * 3);
-    const sW = 100, sH = 70;
-    const sX = 20, sY = H/2 - sH/2;
+    const sW = 90, sH = 60;
+    const sX = 16, sY = H/2 - sH/2;
     lDrawScatter(ds.pts, '#e8e6f0', sX, sY, sW, sH, arriveAlpha);
     lSans(sX + sW/2, sY - 12, 'new dataset', 9, `rgba(232,230,240,${arriveAlpha*0.8})`, 'center');
     lSans(sX + sW/2, sY + sH + 10, 'D_new  (never seen)', 8, 'rgba(150,150,180,0.5)', 'center');
 
-    // ── Attention lines: dataset → weights ──
+    // Attention lines
     const attnAlpha = Math.min(1, Math.max(0, (inf - 0.2) / 0.3));
     if (attnAlpha > 0) {
       ds.pts.forEach((p, pi) => {
@@ -2341,14 +2336,14 @@ function learnDraw(t) {
         lCtx.lineWidth = 0.8;
         lCtx.beginPath(); lCtx.moveTo(px, py); lCtx.lineTo(ex, ey); lCtx.stroke();
       });
-      lSans(W*0.3, H/2 + 55, 'reading data via attention', 8, `rgba(180,180,210,${attnAlpha*0.6})`, 'center');
+      lSans(wCX * 0.55, H/2 + 50, 'reading data via attention', 8, `rgba(180,180,210,${attnAlpha*0.6})`, 'center');
     }
 
-    // ── Output PPD on right ──
+    // Output PPD on right
     const ppdAlpha = Math.min(1, Math.max(0, (inf - 0.55) / 0.35));
     if (ppdAlpha > 0) {
-      const pW = 120, pH = 80;
-      const pX = W - pW - 20, pY = H/2 - pH/2;
+      const pW = 110, pH = 72;
+      const pX = ppdX, pY = H/2 - pH/2;
       lDrawPPD(ds.ppd, '#7c6af5', pX, pY, pW, pH, ppdAlpha, true);
       lSans(pX+pW/2, pY - 14, 'posterior predictive', 9, `rgba(180,160,255,${ppdAlpha*0.9})`, 'center', '500');
       lSans(pX+pW/2, pY + pH + 10, 'p(y | x, D_new)', 9, `rgba(140,130,200,${ppdAlpha*0.6})`, 'center');
@@ -2366,7 +2361,7 @@ function learnDraw(t) {
     // "Same weights." badge
     const badgeAlpha = Math.min(1, Math.max(0, (inf - 0.7) / 0.2));
     if (badgeAlpha > 0) {
-      lSans(W*0.6, H - 24, 'Same weights.  Different dataset.  Correct posterior.', 10, `rgba(94,203,138,${badgeAlpha*0.85})`, 'center', '500');
+      lSans(W/2, H - 20, 'Same weights.  Different dataset.  Correct posterior.', 10, `rgba(94,203,138,${badgeAlpha*0.85})`, 'center', '500');
     }
 
     if (inferT === 0) {
@@ -2532,65 +2527,78 @@ function encDraw(step) {
 
   /* ── STAGE 2: SVD + shuffle ───────────────────────── */
   if (step === 2) {
-    mono('Global SVD  ·  feature shuffle  (per-estimator)', W/2, 18, 10, 'rgba(200,190,255,0.55)');
+    mono('Global SVD transform  ·  feature shuffle  (per-estimator)', W/2, 18, 10, 'rgba(200,190,255,0.55)');
 
-    // original features column
-    const origF = ['f₁','f₂','f₃','f₄','fp'];
-    const oX=28, oY=44, oW=32, oH=26;
-    mono('after step ②', oX+oW/2, oY-12, 8, 'rgba(140,130,180,0.4)');
-    origF.forEach((f,i) => {
-      box(oX, oY+i*oH, oW-2, oH-2, '#181830', PURP+'44');
-      mono(f, oX+(oW-2)/2, oY+i*oH+(oH-2)/2, 9, PURP+'cc');
-    });
-    // y label
-    box(oX, oY+origF.length*oH, oW-2, oH-2, '#0e1e12', GRN+'44');
-    mono('y', oX+(oW-2)/2, oY+origF.length*oH+(oH-2)/2, 9, GRN+'cc');
+    // ── Left: feature matrix ────────────────────────────────
+    const matX=14, matY=50, mCW=18, mCH=14, nF=5, nR=4;
+    mono('features in', matX+nF*mCW/2, matY-13, 8, 'rgba(140,130,180,0.4)');
+    mono(`(${nF} cols)`, matX+nF*mCW/2, matY+nR*mCH+12, 7, PURP+'77');
+    for (let r=0;r<nR;r++) for (let c=0;c<nF;c++) {
+      const v=Math.sin(r*1.7+c*2.3)*0.5+0.5;
+      ctx.fillStyle=`rgba(124,106,245,${(0.15+v*0.38).toFixed(2)})`;
+      ctx.fillRect(matX+c*mCW, matY+r*mCH, mCW-2, mCH-2);
+    }
+    ctx.strokeStyle=PURP+'33'; ctx.lineWidth=0.6;
+    ctx.strokeRect(matX, matY, nF*mCW, nR*mCH);
 
-    // SVD box
-    const svdX=82, svdY=oY+20;
-    arrow(oX+oW, oY+origF.length*oH/2, svdX-2, svdY+40, TEAL+'88');
-    box(svdX, svdY, 66, 80, '#0d1e1e', TEAL+'55', 6);
-    mono('Truncated', svdX+33, svdY+22, 8, TEAL);
-    mono('SVD', svdX+33, svdY+34, 9, TEAL);
-    mono('n_components=', svdX+33, svdY+50, 7, TEAL+'88');
-    mono('n_features/4', svdX+33, svdY+62, 7, TEAL+'88');
+    // ── SVD box ──────────────────────────────────────────────
+    const svdBX=matX+nF*mCW+14, svdBY=matY-2, svdBW=100, svdBH=nR*mCH+4;
+    box(svdBX, svdBY, svdBW, svdBH, '#0a1a1a', TEAL+'55', 6);
+    arrow(matX+nF*mCW+2, matY+nR*mCH/2, svdBX-1, matY+nR*mCH/2, TEAL+'66');
+    mono('Truncated SVD', svdBX+svdBW/2, svdBY+14, 9, TEAL);
+    mono('X  ≈  U · Σ · Vᵀ', svdBX+svdBW/2, svdBY+28, 8, TEAL+'bb');
+    mono('keep k = n_cols/4', svdBX+svdBW/2, svdBY+41, 7, TEAL+'77');
+    mono('components', svdBX+svdBW/2, svdBY+52, 7, TEAL+'55');
 
-    // concat
-    arrow(svdX+66, svdY+40, svdX+94, svdY+40, 'rgba(140,130,180,0.4)');
-    arrow(oX+oW, oY+origF.length*oH/2, svdX+94, svdY+40, 'rgba(140,130,180,0.3)');
-    mono('concat', svdX+83, svdY+25, 7, 'rgba(140,130,180,0.4)');
+    // ── Concat result ─────────────────────────────────────────
+    const cmbX=svdBX+svdBW+12, cmbY=matY, kSVD=2;
+    const totCols=nF+kSVD;
+    arrow(svdBX+svdBW+2, matY+nR*mCH/2, cmbX-1, matY+nR*mCH/2, 'rgba(140,130,180,0.5)');
+    mono('concat', svdBX+svdBW+7, matY+nR*mCH/2-10, 7, 'rgba(140,130,180,0.35)');
+    mono('result', cmbX+totCols*mCW/2, cmbY-13, 8, 'rgba(140,130,180,0.4)');
 
-    // combined block
-    const combF = ['f₁','f₂','f₃','f₄','fp','s₁','s₂','y'];
-    const cmbX=svdX+100, cmbY=oY, cmbW=30, cmbH=22;
-    mono('combined', cmbX+cmbW/2, cmbY-12, 8, 'rgba(140,130,180,0.4)');
-    combF.forEach((f,i) => {
-      const isSVD=i>=5&&i<7, isY=i===7;
-      box(cmbX, cmbY+i*cmbH, cmbW-2, cmbH-2,
-          isSVD?'#0d1e1e':isY?'#0e1e12':'#181830',
-          isSVD?TEAL+'55':isY?GRN+'55':PURP+'44');
-      mono(f, cmbX+(cmbW-2)/2, cmbY+i*cmbH+(cmbH-2)/2, 8, isSVD?TEAL+'cc':isY?GRN+'cc':PURP+'cc');
-    });
+    for (let r=0;r<nR;r++) {
+      // original cols
+      for (let c=0;c<nF;c++) {
+        const v=Math.sin(r*1.7+c*2.3)*0.5+0.5;
+        ctx.fillStyle=`rgba(124,106,245,${(0.15+v*0.38).toFixed(2)})`;
+        ctx.fillRect(cmbX+c*mCW, cmbY+r*mCH, mCW-2, mCH-2);
+      }
+      // SVD cols
+      for (let c=0;c<kSVD;c++) {
+        const v=Math.sin(r*2.1+(nF+c)*1.9)*0.5+0.5;
+        ctx.fillStyle=`rgba(46,196,182,${(0.25+v*0.45).toFixed(2)})`;
+        ctx.fillRect(cmbX+(nF+c)*mCW, cmbY+r*mCH, mCW-2, mCH-2);
+      }
+    }
+    ctx.strokeStyle=PURP+'33'; ctx.lineWidth=0.5;
+    ctx.strokeRect(cmbX, cmbY, nF*mCW, nR*mCH);
+    ctx.strokeStyle=TEAL+'55'; ctx.lineWidth=0.5;
+    ctx.strokeRect(cmbX+nF*mCW, cmbY, kSVD*mCW, nR*mCH);
+    mono(`orig ${nF}`, cmbX+nF*mCW/2, cmbY+nR*mCH+12, 7, PURP+'77');
+    mono(`+${kSVD} SVD`, cmbX+nF*mCW+kSVD*mCW/2, cmbY+nR*mCH+12, 7, TEAL+'88');
 
-    // 8 estimators shuffle illustration
-    const est8X = cmbX+cmbW+30, est8Y = oY;
-    mono('8 estimators × different rotation', est8X+80, est8Y-12, 8, 'rgba(232,166,35,0.6)');
-    const shuffleExamples = [
-      ['f₁','f₃','f₂','s₁'],
-      ['f₂','s₂','f₄','f₁'],
-      ['s₁','f₄','fp','f₃'],
-    ];
-    shuffleExamples.forEach((cols, ei) => {
-      const ey = est8Y + ei*38;
-      mono(`est ${ei+1}:`, est8X-4, ey+10, 7, 'rgba(200,180,100,0.4)', 'right');
-      cols.forEach((f,ci) => {
-        box(est8X+ci*30, ey, 28, 20, '#181820', AMB+'33');
-        mono(f, est8X+ci*30+14, ey+10, 7, AMB+'cc');
+    // ── Feature shuffle illustration ──────────────────────────
+    const shX=cmbX+totCols*mCW+22, shY=matY-10;
+    mono('8 estimators:', shX+68, shY+2, 8, AMB+'99');
+    mono('each a different column order', shX+68, shY+13, 7, AMB+'66');
+
+    const palettes=[[PURP,TEAL,PURP,PURP,TEAL,PURP,TEAL],[TEAL,PURP,PURP,TEAL,PURP,PURP,PURP],[PURP,PURP,TEAL,PURP,PURP,TEAL,PURP]];
+    palettes.forEach((cols,ei) => {
+      const ey=shY+26+ei*28;
+      mono(`est ${ei+1}:`, shX-2, ey+8, 7, 'rgba(200,180,100,0.4)', 'right');
+      cols.forEach((col,ci) => {
+        ctx.fillStyle = ci<nF ? col+(col===TEAL?'55':'33') : TEAL+'55';
+        ctx.fillRect(shX+ci*(mCW+1), ey, mCW, mCH);
+        ctx.strokeStyle=col+'55'; ctx.lineWidth=0.4;
+        ctx.strokeRect(shX+ci*(mCW+1), ey, mCW, mCH);
       });
-      mono('…', est8X+cols.length*30+8, ey+10, 9, AMB+'44');
     });
-    mono('averaged → permutation-invariant prediction', est8X+70, est8Y+3*38+8, 8, 'rgba(232,166,35,0.4)');
+    mono('avg → permutation-invariant', shX+68, shY+26+3*28+4, 7, AMB+'55');
+
+    mono('Only some estimators apply SVD — others use raw transformed features directly', W/2, H-8, 8, 'rgba(150,140,190,0.28)');
   }
+
 
   /* ── STAGE 3: linear projection ──────────────────── */
   if (step === 3) {
