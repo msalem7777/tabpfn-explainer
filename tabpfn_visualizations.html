@@ -2256,44 +2256,42 @@ function learnDraw(t) {
     const sX = Math.max(20, 20 + slideX);
 
     lDrawScatter(ds.pts, ds.color, sX, sY, sW, sH, dsAlpha);
-    lSans(sX + sW/2, sY - 12, ds.label, 9, `${ds.color}cc`, 'center');
-    lSans(sX + sW/2, sY + sH + 10, 'D ~ p(D)', 9, 'rgba(140,130,200,0.55)', 'center');
-
+    lSans(sX + sW / 2, sY - 12, ds.label, 9, `${ds.color}cc`, 'center');
+    lSans(sX + sW / 2, sY + sH + 10, 'D ~ p(D)', 9, 'rgba(140,130,200,0.55)', 'center');
+    
     // Arrow: dataset → weights
     const arrowProgress = Math.min(1, (dsProgress - 0.15) / 0.4);
     if (arrowProgress > 0) {
-      const ax1 = sX + sW + 4, ay1 = sY + sH/2;
+      const ax1 = sX + sW + 4, ay1 = sY + sH / 2;
       const ax2 = wb.bx - 4, ay2 = wb.cy;
-      const ax = ax1 + (ax2-ax1)*arrowProgress;
-      const ay = ay1 + (ay2-ay1)*arrowProgress;
-
+      const ax = ax1 + (ax2 - ax1) * arrowProgress;
+      const ay = ay1 + (ay2 - ay1) * arrowProgress;
+    
       lCtx.strokeStyle = `${ds.color}88`;
       lCtx.lineWidth = 1.2;
-      lCtx.setLineDash([4,3]);
+      lCtx.setLineDash([4, 3]);
       lCtx.beginPath();
       lCtx.moveTo(ax1, ay1);
       lCtx.lineTo(ax, ay);
       lCtx.stroke();
       lCtx.setLineDash([]);
-
+    
       lCtx.beginPath();
-      lCtx.arc(ax, ay, 3.5, 0, Math.PI*2);
+      lCtx.arc(ax, ay, 3.5, 0, Math.PI * 2);
       lCtx.fillStyle = ds.color;
       lCtx.fill();
     }
-
+    
     // PPD for this dataset (below scatter)
     const ppdAlpha = Math.min(1, Math.max(0, (dsProgress - 0.3) / 0.3));
-
     const pW = 80, pH = 48;
-    const pX = 16 + slideX;
-    const pY = sY + sH + 26;
-
+    const pX = 16 + slideX, pY = sY + sH + 26;
+    
     lDrawPPD(ds.ppd, ds.color, pX, pY, pW, pH, ppdAlpha, true);
-
+    
     if (ppdAlpha > 0.5) {
-      lSans(pX + pW/2, pY - 10, 'true PPD', 8, `${ds.color}99`, 'center');
-      lSans(pX + pW/2, pY + pH + 8, 'p(y|x,D)', 8, 'rgba(140,130,200,0.45)', 'center');
+      lSans(pX + pW / 2, pY - 10, 'true PPD', 8, `${ds.color}99`, 'center');
+      lSans(pX + pW / 2, pY + pH + 8, 'p(y|x,D)', 8, 'rgba(140,130,200,0.45)', 'center');
     }
 
     // Weights box
