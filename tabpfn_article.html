@@ -482,7 +482,7 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 
 <div class="wrap">
 <p>
-  For most of its history, tabular machine learning has operated by a single assumption: you train a model on your dataset. Every model starts from scratch. Every dataset is an island. Gradient-boosted trees  (e.g. XGBoost, LightGBM, CatBoost) sit at the top of benchmark leaderboards for a reason: they are remarkably good at squeezing signal from structured data with no prior knowledge at all.
+  For most of its history, tabular machine learning has operated by a single paradigm: you train a model on your dataset. Every model starts from scratch. Every dataset is an island. Gradient-boosted trees  (e.g. XGBoost, LightGBM, CatBoost) sit at the top of benchmark leaderboards for a reason: they are remarkably good at squeezing signal from structured data with no prior knowledge at all.
 </p>
 
 <p>
@@ -536,13 +536,13 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 </div>
 
 <div class="new-block">
-  <p style="margin:0;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">Note on feature names.</strong> The feature labels in the illustration above (age, income, debt…) are added for readability only — the synthetic datasets used in pretraining have no semantic feature names. Every column is just a number. That said, the <em>structure</em> of the DAG does matter: a prior that generates causal graphs resembling real-world processes (e.g., income influencing loan outcome rather than the reverse) will produce a model better calibrated for datasets from similar domains. TabPFN v2 allows practitioners to customise the prior towards the kinds of tasks they expect to encounter.</p>
+  <p style="margin:0;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">Note on feature names.</strong> The feature labels in the illustration above (age, income, debt…) are added for readability and illustration purposes only; the synthetic datasets used in pretraining do not require defining feature names. That said, the <em>structure</em> of the DAG does matter: a prior that generates causal graphs resembling real-world processes (e.g., income influencing loan outcome rather than the reverse) will produce a model better calibrated for datasets from similar domains.</p>
 </div> 
 <!-- ══════════════════════════════════════════════════ -->
 <h2>Part 2 — The architecture: a transformer that reads datasets, not sentences</h2>
 
 <div class="new-block">
-  <p style="margin:0;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">Scope note.</strong> This section describes the architecture of <strong>TabPFN v2</strong> specifically, as implemented in the Prior Labs source code. Other tabular foundation models — including TabPFN v1, TabICL, and ConTextTab — use different architectural choices. The core ideas of synthetic pretraining and in-context learning are shared across the field, but the specific attention design, feature encoding, and loss function described here are TabPFN v2's.</p>
+  <p style="margin:0;font-family:var(--sans);font-size:0.9rem;color:var(--ink-mid);line-height:1.65;"><strong style="color:var(--ink);">Scope note.</strong> This section describes the architecture of <strong>TabPFN v2</strong> specifically, as implemented in the Prior Labs source code. Other tabular foundation models, including other versions of TabPFN, TabICL, and ConTextTab; use different architectural choices. The core ideas of synthetic pretraining and in-context learning are shared across the field, but the specific attention design, feature encoding, and loss function described here are TabPFN v2's.</p>
 </div>
 
 <div class="wrap">
@@ -553,7 +553,7 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 <h3>The token is a cell, not a word</h3>
 
 <p>
-  In a language model, a token is a word or subword. In tabular foundation models, a token is one <em>(row, feature-group)</em> cell. The input is a table with <em>n</em> rows and <em>f</em> features. Features are grouped into blocks, each block is linearly projected into a <em>d</em>-dimensional embedding, and the label <em>y</em> is encoded separately and appended as a final column. The full tensor entering the transformer has shape:
+  In a language model, a token is a word or subword. In tabular foundation models, a token is, loosley speaking, one cell (more accurately, it is a <em>(row, feature-group)</em> group of adjacent cells). The input is a table with <em>n</em> rows and <em>f</em> features. Features can be grouped into blocks, each block is then linearly projected into a <em>d</em>-dimensional embedding, and the label <em>y</em> is encoded separately and appended as a final column. The full tensor entering the transformer has shape:
 </p>
 </div>
 
@@ -561,41 +561,19 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
   <span class="label">Internal tensor shape after encoding</span>
   (batch, seq_len, num_feature_groups + 1, d_model)
   <span class="note">The +1 is the label column. For training rows it holds the true label. For query rows it is filled with NaNs, and its value after all L transformer layers is what gets decoded into a prediction.</span>
-  <span class="note new" style="margin-top:0.4rem;display:block;"><strong>What these dimensions mean in practice:</strong> <code>batch = 1</code> at inference — the model processes one dataset per forward pass. <code>seq_len</code> = number of training rows + number of query rows, all seen together in a single context. The 8 estimators (the ensemble) are <em>not</em> a batch dimension; they are 8 separate sequential forward passes on differently preprocessed versions of the same data, whose outputs are averaged.</span>
+  <span class="note new" style="margin-top:0.4rem;display:block;"><strong>What these dimensions mean in practice:</strong> <code>batch = 1</code> at inference, the model processes one dataset per forward pass. <code>seq_len</code> = number of training rows + number of query rows, all seen together in a single context.</span>
 </div>
 
 <div class="wrap">
 <p>
-  This is the first architectural peculiarity worth noting: the label is not treated as a separate output target sitting outside the model; it is <em>inside</em> the same tensor as the features, occupying the last feature-group slot. This becomes important when we describe how attention actually flows.
+  This is the first architectural peculiarity worth noting: the label is not treated as a separate output target sitting outside the model; it is <em>inside</em> the same tensor as the features, occupying the last feature-group slot. This becomes important when we describe how the attention mechanism flows in the model.
 </p>
-
-<p class="new" style="background:#fffacd;outline:2px solid #e8d800;border-radius:6px;padding:0.7rem 1rem;max-width:var(--max);margin:1rem auto;">
-  Before attention runs, each raw feature value is projected from a single scalar into a <em>d</em>-dimensional embedding vector by a learned linear encoder. The label column is encoded by a separate <code>y_encoder</code>. The attention mechanism then operates on these dense embedding vectors — not on the raw numbers. Note also that a token can represent more than a single feature: adjacent features can be grouped together into a single token before projection. We cover this in detail in the Advanced section below.
-</p>
-
-</div>
-
-<div class="vis-callout">
-  <div class="icon">②</div>
-  <div class="body">
-    <strong>Interactive · Row &amp; column attention</strong>
-    <p>Step through pre-selected examples showing exactly which cells are Queries, which are Keys (amber border), and which become Values (green fill), for both column attention and row attention. The label column is included. The visualization uses the <code>features_per_group=1</code> default — each feature is its own token. You can also <a href="tabpfn_visualizations.html?tab=1" target="_blank">open it in a new tab</a>.</p>
-  </div>
-</div>
-
-<div class="viz-embed">
-  <iframe
-    src="tabpfn_visualizations.html?tab=1"
-    title="Row and Column Attention"
-    loading="lazy">
-  </iframe>
-</div>
 
 <div class="wrap">
 <h3>Two kinds of attention — and why both matter</h3>
 
 <p>
-  Each of the <em>L</em> identical transformer layers applies attention twice in sequence, over two completely different dimensions of the tensor. This is the heart of the architecture.
+  In the model, attention is applied twice in sequence, over two completely different dimensions of the tensor. This is the heart of the architecture and the main adaptation to tabular data.
 </p>
 
 <p>
@@ -603,7 +581,7 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 </p>
 
 <p>
-  The significance of this for training rows: the label is visible. When column attention runs on a training row, the feature tokens can directly read the label, and the label token can read the features. The model learns which feature patterns co-occur with which labels, at the level of individual cells within a single example. This is where feature interaction happens: income and debt and age can jointly attend to the label, learning a rich representation of how those features relate to outcomes.
+  The significance of this for training rows: the label is visible. When column attention runs on a training row, the feature tokens can directly read the label, and the label token can read the features. The model learns which feature patterns co-occur with which labels, at the level of individual cells within a single example. This is where feature interaction happens, e.g.: income and debt and age can jointly attend to the label, learning a rich representation of how those features relate to outcomes.
 </p>
 
 <p>
@@ -619,11 +597,12 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
 </p>
 </div>
 
+
 <div class="vis-callout">
   <div class="icon">②</div>
   <div class="body">
     <strong>Interactive · Row &amp; column attention</strong>
-    <p>Step through pre-selected examples showing exactly which cells are Queries, which are Keys (amber border), and which become Values (green fill), for both column attention and row attention. The label column is included. You can also <a href="tabpfn_visualizations.html?tab=1" target="_blank">open it in a new tab</a>.</p>
+    <p>Step through pre-selected examples showing exactly which cells are Queries, which are Keys (amber border), and which become Values (green fill), for both column attention and row attention. The label column is included. The visualization uses the <code>features_per_group=1</code> default; each feature is its own token. You can also <a href="tabpfn_visualizations.html?tab=1" target="_blank">open it in a new tab</a>.</p>
   </div>
 </div>
 
@@ -633,6 +612,11 @@ p.new, div.new, .note-box.new, .eq.new, .adv-box.new, .pull.new {
     title="Row and Column Attention"
     loading="lazy">
   </iframe>
+</div>
+
+<p class="new" style="background:#fffacd;outline:2px solid #e8d800;border-radius:6px;padding:0.7rem 1rem;max-width:var(--max);margin:1rem auto;">
+  <strong>Attention to detail:</strong> To simplify, we can think of attention as looking at the values in the row-column intersections, however, the real implementation is a bit more nuanced; before attention runs, each raw feature value is projected from a single scalar into a <em>d</em>-dimensional embedding vector by a learned linear encoder. The label column is encoded by a separate <code>y_encoder</code>. The attention mechanism then operates on these dense embedding vectors, not on the raw numbers. Note also that a token can represent more than a single feature: adjacent features can be grouped together into a single token before projection. We cover this in detail in the Advanced section below.
+</p>
 </div>
   
 <div class="wrap">
