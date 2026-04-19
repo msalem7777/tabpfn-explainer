@@ -478,7 +478,7 @@ function showSection(i) {
   requestAnimationFrame(() => {
     if (i===2) drawArch();
     if (i===3) { initBarDist(); }
-    if (i===4) { initKernel(); }
+    if (i===4) { learnEnsureCanvas(); learnReset(); }
     if (i===5) { encInit(); }
   });
 }
@@ -2071,6 +2071,37 @@ function learnReset() {
     'Press <strong>Play</strong> to see how the model learns to perform Bayesian inference.';
 }
 
+if (needsInit) {
+    learnCanvas.width = pixelW;
+    learnCanvas.height = pixelH;
+    lCtx = learnCanvas.getContext('2d');
+    lCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+}
+
+function learnReset() {
+  clearTimeout(learnTimer);
+  if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(learnRaf);
+  learnRunning = false;
+  learnT = 0;
+  learnPhase = 0;
+  document.getElementById('learn-play-btn').textContent = '▶ Play';
+  learnEnsureCanvas();
+  if (!learnCanvas || !lCtx) return;
+  lCtx.clearRect(0, 0, learnW, 360);
+  document.getElementById('learn-caption').innerHTML =
+    'Press <strong>Play</strong> to see how the model learns to perform Bayesian inference.';
+}
+
+function learnDraw(t) {
+  if (!learnCanvas || !lCtx) return;
+  learnEnsureCanvas();   // important: keep width current after tab/iframe/layout changes
+
+  const W = learnW;
+  const H = 360;
+
+  lCtx.clearRect(0, 0, W, H);
+  
 function learnPlay() {
   if (learnRunning) {
     learnRunning = false;
