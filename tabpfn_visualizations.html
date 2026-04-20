@@ -443,7 +443,7 @@ table.data-table tr.row-highlight td {
 <!-- ═══════════════════════════════════════════════════════════ -->
 <section class="section" id="sec5">
   <h2 class="section-title">From raw table to token grid: the encoding pipeline</h2>
-  <p class="section-sub">Before a single attention operation runs, each estimator in the 8-member ensemble passes the data through a multi-stage preprocessing pipeline. Each stage transforms the raw numbers into a form the transformer can reason over. Step through the four stages to see what the model actually receives — and why the ensemble design is essential.</p>
+  <p class="section-sub">Before a single attention operation runs, each estimator in the M-member ensemble passes the data through a multi-stage preprocessing pipeline. Each stage transforms the raw numbers into a form the transformer can reason over. Step through the four stages to see what the model actually receives and why the ensemble design is essential.</p>
 
   <div class="vis-box">
     <div style="display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; align-items:center;" id="enc-stage-pips">
@@ -552,7 +552,7 @@ const STEP_LABELS = [
   ['① Sample DAG', `A random DAG is drawn. Root nodes (purple) are inputs; the target (green) is the output we want to predict. The graph defines which features causally influence which.`],
   ['② Assign weights &amp; functions', `Each edge gets a random weight w. Each non-root node is assigned a nonlinear function f (ReLU, tanh, sigmoid…). These together define the data-generating mechanism.`],
   ['③ Sample &amp; propagate noise ε', `Noise ε ~ N(0, σ²) is sampled at each root node. Values propagate forward: each node computes f(Σ wᵢ · parentᵢ + εᵢ). Watch values light up left-to-right.`],
-  ['④ One row of synthetic data produced', `The computed values become one row of a synthetic dataset. Each dataset contains many such rows. Repeating across ~130 million distinct datasets — each from a different DAG — builds the full pretraining corpus TabPFN learns from.`],
+  ['④ One row of synthetic data produced', `The computed values become one row of a synthetic dataset. Each dataset contains many such rows. Repeating across ~130 million distinct datasets, each from a different DAG, builds the full pretraining corpus TabPFN learns from.`],
 ];
 
 function setDagPip(active) {
@@ -1698,7 +1698,7 @@ function bdDrawBorders() {
   });
   bdLabel(bdCtx, padL+plotW/2, H-8, 'target y (normalised to 0–1)', 9, 'rgba(120,120,160,0.4)');
 
-  bdCaption(`<strong style="color:var(--accent)">Step 1 — Build borders.</strong> The target range is split into N=${BD_N} buckets. Borders are chosen so each bucket has <em>equal probability under the prior</em> (1/N each) — derived from quantiles of a large prior-data sample. This is what makes the softmax loss well-calibrated: all classes start equally likely before any data is seen.`);
+  bdCaption(`<strong style="color:var(--accent)">Step 1 — Build borders.</strong> The target range is split into N buckets. Borders are chosen so each bucket has <em>equal probability under the prior</em> (1/N each) — derived from quantiles of a large prior-data sample. This is what makes the softmax loss well-calibrated: all classes start equally likely before any data is seen.`);
 }
 
 // ── Frame 1: Map y → bucket ────────────────────────────────────
@@ -2698,10 +2698,10 @@ let encCurrentStage = 0;
 let encInitialized = false;
 
 const ENC_CAPTIONS = [
-  '① Raw table. Each row contains heterogeneous features: a continuous float (age=34), a large numeric (income=52k), a categorical string (debt="low"), and a binary label (y=1). A query row has an unknown label (?). An MLP requires these to be heavily preprocessed into a fixed numeric format before training — here, all types enter the model natively through feature tokenisation.',
+  '① Raw table. Each row contains heterogeneous features: a continuous float (age=34), a large numeric (income=52k), a categorical string (debt="low"), and a binary label (y=1). A query row has an unknown label (?). An MLP requires these to be heavily preprocessed into a fixed numeric format before training. Here, all types enter the model natively through feature tokenisation.',
   '② Per-feature distribution transforms (one configuration per estimator). Each numeric column is independently reshaped: quantile normalisation maps skewed distributions to uniform [0,1] or normal output; the squashing scaler applies robust centering followed by soft clipping to handle outliers. Constant features are dropped (RemoveConstantFeaturesStep). Categorical columns receive ordinal encoding with randomly shuffled category order. A fingerprint feature — a hash of each row — is appended to help the model distinguish otherwise identical rows.',
-  '③ Global SVD transform · feature shuffle. Some estimators apply Truncated SVD across all features after the per-feature step: the original features are kept and a set of principal components (n_features/4 components) is appended alongside them, capturing global linear structure. Then each of the 8 ensemble estimators applies a different cyclic rotation of the feature column order (ShuffleFeaturesStep). Averaged across 8 different shuffles, the prediction becomes approximately permutation-invariant — the model\'s output no longer depends on which column was listed first in your CSV.',
-  '④ Linear projection → token grid. Each (preprocessed) scalar feature value x is multiplied by a learned weight vector W ∈ ℝ^d_model to produce a d-dimensional embedding: token = W · x. With features_per_group=1 (TabPFN v2 default), each feature is its own token. The label y goes through a separate y_encoder. The result is a token grid of shape (seq_len, num_feature_groups + 1, d_model) where seq_len = n_train_rows + n_query_rows. This is what row and column attention operate on — dense vectors in a shared space, not raw heterogeneous scalars.',
+  '③ Global SVD transform · feature shuffle. Some estimators apply Truncated SVD across all features after the per-feature step: the original features are kept and a set of principal components (n_features/4 components) is appended alongside them, capturing global linear structure. Then each of the ensemble estimators applies a different cyclic rotation of the feature column order (ShuffleFeaturesStep). Averaged across 8 different shuffles, the prediction becomes approximately permutation-invariant — the model\'s output no longer depends on which column was listed first in your CSV.',
+  '④ Linear projection → token grid. Each (preprocessed) scalar feature value x is multiplied by a learned weight vector W ∈ ℝ^d_model to produce a d-dimensional embedding: token = W · x. With features_per_group=1, each feature is its own token. The label y goes through a separate y_encoder. The result is a token grid of shape (seq_len, num_feature_groups + 1, d_model) where seq_len = n_train_rows + n_query_rows. This is what row and column attention operate on — dense vectors in a shared space, not raw heterogeneous scalars.',
 ];
 
 function encShowStage(i) {
@@ -2910,7 +2910,7 @@ function encDraw(step) {
     });
     mono('avg → permutation-invariant', shX+68, shY+26+3*28+4, 7, AMB+'55');
 
-    mono('Only some estimators apply SVD — others use raw transformed features directly', W/2, H-8, 8, 'rgba(150,140,190,0.28)');
+    mono('Only some estimators apply SVD, others use raw transformed features directly', W/2, H-8, 8, 'rgba(150,140,190,0.28)');
   }
 
 
