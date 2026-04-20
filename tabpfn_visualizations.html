@@ -443,7 +443,7 @@ table.data-table tr.row-highlight td {
 <!-- ═══════════════════════════════════════════════════════════ -->
 <section class="section" id="sec5">
   <h2 class="section-title">From raw table to token grid: the encoding pipeline</h2>
-  <p class="section-sub">Before a single attention operation runs, each estimator in the M-member ensemble passes the data through a multi-stage preprocessing pipeline. Each stage transforms the raw numbers into a form the transformer can reason over. Step through the four stages to see what the model actually receives and why the ensemble design is essential.</p>
+  <p class="section-sub">Before a single attention operation runs, each estimator in the 8-member ensemble passes the data through a multi-stage preprocessing pipeline. Each stage transforms the raw numbers into a form the transformer can reason over. Step through the four stages to see what the model actually receives — and why the ensemble design is essential.</p>
 
   <div class="vis-box">
     <div style="display:flex; gap:6px; margin-bottom:14px; flex-wrap:wrap; align-items:center;" id="enc-stage-pips">
@@ -1431,7 +1431,7 @@ function drawArch() {
 
   // ── STAGE 5a: Regression output ──
   const decX = 668, decYreg = 108, decW = 138, decH = 100;
-  const regGrp = clickable(svgEl('g'), `Regression output (BarDistribution): the extracted label-slot embedding is passed through a linear decoder head to produce logits over N buckets. A softmax gives probabilities for each bucket, forming the Riemann/bar distribution. This is a full predictive distribution over the target value, not just a point estimate. The NLL loss is −log p(y_true | bucket).`);
+  const regGrp = clickable(svgEl('g'), `Regression output (BarDistribution): the extracted label-slot embedding is passed through a linear decoder head to produce logits over N buckets. A softmax gives probabilities for each bucket — forming the Riemann/bar distribution. This is a full predictive distribution over the target value, not just a point estimate. The NLL loss is −log p(y_true | bucket).`);
   regGrp.appendChild(rect(decX, decYreg, decW, decH, '#1a1220','#e8604c','1','8'));
 
   // Mini bar chart
@@ -1698,7 +1698,7 @@ function bdDrawBorders() {
   });
   bdLabel(bdCtx, padL+plotW/2, H-8, 'target y (normalised to 0–1)', 9, 'rgba(120,120,160,0.4)');
 
-  bdCaption(`<strong style="color:var(--accent)">Step 1 — Build borders.</strong> The target range is split into N buckets. Borders are chosen so each bucket has <em>equal probability under the prior</em> (1/N each) — derived from quantiles of a large prior-data sample. This is what makes the softmax loss well-calibrated: all classes start equally likely before any data is seen.`);
+  bdCaption(`<strong style="color:var(--accent)">Step 1 — Build borders.</strong> The target range is split into N=${BD_N} buckets. Borders are chosen so each bucket has <em>equal probability under the prior</em> (1/N each) — derived from quantiles of a large prior-data sample. This is what makes the softmax loss well-calibrated: all classes start equally likely before any data is seen.`);
 }
 
 // ── Frame 1: Map y → bucket ────────────────────────────────────
@@ -2564,71 +2564,125 @@ function learnDraw(t) {
     }
   }
 
-  // ── INFERENCE PHASE ───────────────────────────────────────────
-  if (isInference) {
-    const inf = Math.min(1, inferT / 180);
-    const ds = INFER_DATASET;
 
-    lSans(W/2, 18, 'Inference — no retraining', 12, 'rgba(200,220,200,0.6)', 'center', '500');
+  // ── INFERENCE PHASE ──────────────────────────────────────────────
+  if (!isTraining) {
+    const inf  = Math.min(1, inferT / 180);
+    const ds   = INFER_DATASET;
+    const activeQ = 1;
 
-    // Weights (trained, no pulse)
+    const COL_W  = 104;
+    const S_H    = 52;   // single pair — taller
+    const wCX    = W * 0.44;
+    const rightX = W * 0.70;
+    const rightW = W - rightX - 8;
+    const activeCol = TC[activeQ];
+
+    const sY = H/2 - S_H - 8;   // train scatter
+    const tY = H/2 + 8;          // test scatter
+
+    lSans(W/2, 14, 'Inference — no retraining', 12, 'rgba(200,220,200,0.6)', 'center', '500');
+
+    // Weights — static
     const wb = lDrawWeights(W, H, 0.0, wCX);
 
-    // New dataset arrives on left
-    const arriveAlpha = Math.min(1, inf * 3);
-    const sW = 90, sH = 60;
-    const sX = 16, sY = H/2 - sH/2;
-    lDrawScatter(ds.pts, '#e8e6f0', sX, sY, sW, sH, arriveAlpha);
-    lSans(sX + sW/2, sY - 12, 'new dataset', 9, `rgba(232,230,240,${arriveAlpha*0.8})`, 'center');
-    lSans(sX + sW/2, sY + sH + 10, 'D_new  (never seen)', 8, 'rgba(150,150,180,0.5)', 'center');
+    const arrA = Math.min(1, inf*3);
 
-    // Attention lines
-    const attnAlpha = Math.min(1, Math.max(0, (inf - 0.2) / 0.3));
-    if (attnAlpha > 0) {
-      ds.pts.forEach((p, pi) => {
-        const px = sX + p.x*sW;
-        const py = sY + (1-p.y)*sH;
-        const tx = wb.bx, ty = wb.by + wb.bh/2;
-        const t_ = Math.min(1, (inf - 0.2 - pi*0.03) / 0.3);
-        if (t_ <= 0) return;
-        const ex = px + (tx-px)*t_, ey = py + (ty-py)*t_;
-        lCtx.strokeStyle = `rgba(232,230,240,${attnAlpha*0.25})`;
-        lCtx.lineWidth = 0.8;
-        lCtx.beginPath(); lCtx.moveTo(px, py); lCtx.lineTo(ex, ey); lCtx.stroke();
+    // ── Train scatter ──
+    lDrawScatter(ds.pts, ds.color, 8, sY, COL_W, S_H, arrA);
+    lSans(8+COL_W/2, sY-10, 'D_new  (unseen)', 8, `rgba(185,175,215,${arrA*0.8})`, 'center');
+
+    // ── Test scatter with coloured points ──
+    lCtx.save(); lCtx.globalAlpha=arrA;
+    lCtx.fillStyle='rgba(18,18,32,0.7)';
+    lCtx.beginPath(); if(lCtx.roundRect) lCtx.roundRect(8,tY,COL_W,S_H,3); else lCtx.rect(8,tY,COL_W,S_H); lCtx.fill();
+    lCtx.strokeStyle=ds.color+'44'; lCtx.lineWidth=0.7;
+    lCtx.beginPath(); if(lCtx.roundRect) lCtx.roundRect(8,tY,COL_W,S_H,3); else lCtx.rect(8,tY,COL_W,S_H); lCtx.stroke();
+    ds.tpts.forEach((p,pi) => {
+      const px=8+p.x*COL_W, py=tY+(1-p.y)*S_H;
+      lCtx.beginPath(); lCtx.arc(px,py,pi===activeQ?5:3,0,Math.PI*2);
+      lCtx.fillStyle=TC[pi]; lCtx.fill();
+      if (pi===activeQ) {
+        lCtx.strokeStyle=TC[pi]+'77'; lCtx.lineWidth=1;
+        lCtx.beginPath(); lCtx.arc(px,py,8,0,Math.PI*2); lCtx.stroke();
+        lSans(px, tY-10, 'x*', 7, TC[pi], 'center');
+      }
+    });
+    lCtx.restore();
+    lSans(8+COL_W/2, tY+S_H+10, 'query points', 7, 'rgba(160,150,200,0.45)', 'center');
+
+    // ── Arrows: all train points → weights ──
+    const attnA = Math.min(1, Math.max(0,(inf-0.1)/0.35));
+    if (attnA > 0) {
+      ds.pts.forEach((p,pi) => {
+        const t_ = Math.min(1, Math.max(0,(inf-0.1-pi*0.025)/0.35));
+        if (t_<=0) return;
+        const px=8+p.x*COL_W, py=sY+(1-p.y)*S_H;
+        const ex=px+(wb.bx-px)*t_, ey=py+(wb.by+wb.bh/2-py)*t_;
+        lCtx.strokeStyle=`rgba(185,175,215,${attnA*0.28})`; lCtx.lineWidth=0.8;
+        lCtx.setLineDash([3,3]);
+        lCtx.beginPath(); lCtx.moveTo(px,py); lCtx.lineTo(ex,ey); lCtx.stroke();
+        lCtx.setLineDash([]);
+        if (t_<1) {
+          lCtx.beginPath(); lCtx.arc(ex,ey,2,0,Math.PI*2);
+          lCtx.fillStyle=ds.color; lCtx.fill();
+        }
       });
-      lSans(wCX * 0.55, H/2 + 50, 'reading data via attention', 8, `rgba(180,180,210,${attnAlpha*0.6})`, 'center');
     }
 
-    // Output PPD on right
-    const ppdAlpha = Math.min(1, Math.max(0, (inf - 0.55) / 0.35));
-    if (ppdAlpha > 0) {
-      const pW = 110, pH = 72;
-      const pX = ppdX, pY = H/2 - pH/2;
-      lDrawPPD(ds.ppd, '#7c6af5', pX, pY, pW, pH, ppdAlpha, true);
-      lSans(pX+pW/2, pY - 14, 'posterior predictive', 9, `rgba(180,160,255,${ppdAlpha*0.9})`, 'center', '500');
-      lSans(pX+pW/2, pY + pH + 10, 'p(y | x, D_new)', 9, `rgba(140,130,200,${ppdAlpha*0.6})`, 'center');
+    // ── Right column: delta fn + PPD ──
+    const ppdA = Math.min(1, Math.max(0,(inf-0.45)/0.35));
+    const rH_ppd=62, rH_delta=36;
+    const rY_delta = H/2 - rH_delta - rH_ppd/2 - 12;
+    const rY_ppd   = rY_delta + rH_delta + 14;
 
-      // Arrow from weights → PPD
-      const ax1 = wb.bx + wb.bw, ay1 = wb.cy;
-      const ax2 = pX - 4, ay2 = pY + pH/2;
-      lCtx.strokeStyle = `rgba(124,106,245,${ppdAlpha*0.6})`;
-      lCtx.lineWidth = 1.2;
+    if (ppdA > 0) {
+      // arrow: weights → PPD
+      const as = {x:wb.bx+wb.bw, y:wb.cy};
+      const ae = {x:rightX, y:rY_ppd+rH_ppd/2};
+      const aax=as.x+(ae.x-as.x)*Math.min(1,ppdA*1.8), aay=as.y+(ae.y-as.y)*Math.min(1,ppdA*1.8);
+      lCtx.strokeStyle=`rgba(94,203,138,${ppdA*0.55})`; lCtx.lineWidth=1.1;
       lCtx.setLineDash([4,3]);
-      lCtx.beginPath(); lCtx.moveTo(ax1,ay1); lCtx.lineTo(ax2,ay2); lCtx.stroke();
+      lCtx.beginPath(); lCtx.moveTo(as.x,as.y); lCtx.lineTo(aax,aay); lCtx.stroke();
       lCtx.setLineDash([]);
+      if (ppdA<0.65) {
+        lCtx.beginPath(); lCtx.arc(aax,aay,2.5,0,Math.PI*2);
+        lCtx.fillStyle='rgba(94,203,138,0.7)'; lCtx.fill();
+      }
+
+      lDrawPPD(ds.qppd[activeQ], activeCol, rightX, rY_ppd, rightW, rH_ppd, ppdA, true);
+      lSans(rightX+rightW/2, rY_ppd-11, 'p(y | x*, D_new)', 8, `rgba(200,230,200,${ppdA*0.85})`, 'center');
+      lSans(rightX+rightW/2, rY_ppd+rH_ppd+9, 'single forward pass', 7, `rgba(94,203,138,${ppdA*0.55})`, 'center');
+
+      // delta fn
+      const modeIdx = ds.qppd[activeQ].indexOf(Math.max(...ds.qppd[activeQ]));
+      const N=ds.qppd[activeQ].length;
+      lCtx.save(); lCtx.globalAlpha=ppdA;
+      lCtx.fillStyle='rgba(18,18,32,0.8)';
+      lCtx.beginPath(); if(lCtx.roundRect) lCtx.roundRect(rightX,rY_delta,rightW,rH_delta,3); else lCtx.rect(rightX,rY_delta,rightW,rH_delta); lCtx.fill();
+      lCtx.strokeStyle=activeCol+'66'; lCtx.lineWidth=0.7;
+      lCtx.beginPath(); if(lCtx.roundRect) lCtx.roundRect(rightX,rY_delta,rightW,rH_delta,3); else lCtx.rect(rightX,rY_delta,rightW,rH_delta); lCtx.stroke();
+      const bW=rightW/N;
+      for (let bi=0;bi<N;bi++) {
+        const bH=bi===modeIdx?rH_delta-4:2;
+        lCtx.fillStyle=bi===modeIdx?activeCol+'ee':activeCol+'22';
+        lCtx.fillRect(rightX+bi*bW+0.5, rY_delta+rH_delta-bH-2, bW-1, bH);
+      }
+      lCtx.restore();
+      lSans(rightX+rightW/2, rY_delta-9, 'ŷ = argmax  (x*)', 8, `${activeCol}${Math.floor(ppdA*220).toString(16).padStart(2,'0')}`, 'center');
     }
 
-    // "Same weights." badge
-    const badgeAlpha = Math.min(1, Math.max(0, (inf - 0.7) / 0.2));
-    if (badgeAlpha > 0) {
-      lSans(W/2, H - 20, 'Same weights.  Different dataset.  Correct posterior.', 10, `rgba(94,203,138,${badgeAlpha*0.85})`, 'center', '500');
+    const badgeA = Math.min(1, Math.max(0,(inf-0.78)/0.18));
+    if (badgeA>0) {
+      lSans(W/2, H-20, 'Same weights.  New dataset.  Correct posterior.', 10, `rgba(94,203,138,${badgeA*0.85})`, 'center', '500');
     }
 
-    if (inferT === 0) {
+    if (inferT===0) {
       document.getElementById('learn-caption').innerHTML =
-        `<strong style="color:var(--green)">Inference — no retraining needed.</strong> A new dataset arrives that the model has never seen. The attention mechanism reads its structure, the weights map that fingerprint to the appropriate posterior shape, and the bar distribution outputs <code>p(y | x, D_new)</code>, all in a single forward pass. The weights have learned not <em>what</em> specific datasets look like, but <em>how</em> to infer from any dataset consistent with the prior.`;
+        `<strong style="color:var(--green)">Inference — no retraining needed.</strong> A new unseen dataset arrives. Training rows flow into the fixed weights via attention. For the highlighted query point x* the model outputs <code>p(y|x*,D_new)</code> in a single forward pass. The spike above shows the argmax prediction; the histogram below shows the full predictive distribution including uncertainty.`;
     }
   }
+
 }
 
 function initKernel() {
@@ -2644,9 +2698,9 @@ let encCurrentStage = 0;
 let encInitialized = false;
 
 const ENC_CAPTIONS = [
-  '① Raw table. Each row contains heterogeneous features: a continuous float (age=34), a large numeric (income=52k), a categorical string (debt="low"), and a binary label (y=1). A query row has an unknown label (?). An MLP requires these to be heavily preprocessed into a fixed numeric format before training. Here, all types enter the model natively through feature tokenization.',
-  '② Per-feature distribution transforms (one configuration per estimator). Each numeric column is independently reshaped: quantile normalisation maps skewed distributions to uniform [0,1] or normal output; the squashing scaler applies robust centering followed by soft clipping to handle outliers. Constant features are dropped (RemoveConstantFeaturesStep). Categorical columns receive ordinal encoding with randomly shuffled category order. A fingerprint feature, a hash of each row, is appended to help the model distinguish otherwise identical rows.',
-  '③ Global SVD transform · feature shuffle. Some estimators apply Truncated SVD across all features after the per-feature step: the original features are kept and a set of principal components (n_features/4 components) is appended alongside them, capturing global linear structure. Then each of the ensemble estimators applies a different cyclic rotation of the feature column order (ShuffleFeaturesStep). Averaged across M different shuffles, the prediction becomes approximately permutation-invariant. The model\'s output no longer depends on which column was listed first in your dattaset.',
+  '① Raw table. Each row contains heterogeneous features: a continuous float (age=34), a large numeric (income=52k), a categorical string (debt="low"), and a binary label (y=1). A query row has an unknown label (?). An MLP requires these to be heavily preprocessed into a fixed numeric format before training — here, all types enter the model natively through feature tokenisation.',
+  '② Per-feature distribution transforms (one configuration per estimator). Each numeric column is independently reshaped: quantile normalisation maps skewed distributions to uniform [0,1] or normal output; the squashing scaler applies robust centering followed by soft clipping to handle outliers. Constant features are dropped (RemoveConstantFeaturesStep). Categorical columns receive ordinal encoding with randomly shuffled category order. A fingerprint feature — a hash of each row — is appended to help the model distinguish otherwise identical rows.',
+  '③ Global SVD transform · feature shuffle. Some estimators apply Truncated SVD across all features after the per-feature step: the original features are kept and a set of principal components (n_features/4 components) is appended alongside them, capturing global linear structure. Then each of the 8 ensemble estimators applies a different cyclic rotation of the feature column order (ShuffleFeaturesStep). Averaged across 8 different shuffles, the prediction becomes approximately permutation-invariant — the model\'s output no longer depends on which column was listed first in your CSV.',
   '④ Linear projection → token grid. Each (preprocessed) scalar feature value x is multiplied by a learned weight vector W ∈ ℝ^d_model to produce a d-dimensional embedding: token = W · x. With features_per_group=1 (TabPFN v2 default), each feature is its own token. The label y goes through a separate y_encoder. The result is a token grid of shape (seq_len, num_feature_groups + 1, d_model) where seq_len = n_train_rows + n_query_rows. This is what row and column attention operate on — dense vectors in a shared space, not raw heterogeneous scalars.',
 ];
 
