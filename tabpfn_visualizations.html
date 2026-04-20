@@ -2018,47 +2018,125 @@ let learnT = 0;         // global animation time (frames)
 let learnPhase = 0;     // 0=training, 1=inference
 let learnRaf = null;
 
-// Diverse synthetic datasets: each has scatter points and a PPD shape
+// Test point colours — consistent across all datasets
+const TC = ['#e8e6f0', '#c8e83a', '#e86aa8'];  // white, yellow-green, pink
+const INST_COLORS = ['#7c6af5','#e8a623','#2ec4b6','#e8604c'];
+
+// Diverse synthetic datasets
+// Each has: pts (train), tpts (test scatter, 3 points each), qpts (x only for right-side PPD),
+// qppd (per query, 3 per dataset), trueppd (dataset-level)
 const LEARN_DATASETS = [
   {
     label: 'linear + low noise',
     color: '#7c6af5',
-    pts: [{x:.15,y:.18},{x:.28,y:.32},{x:.4,y:.45},{x:.55,y:.58},{x:.68,y:.70},{x:.80,y:.83}],
-    ppd: [.02,.04,.06,.12,.22,.30,.24,.16,.09,.04,.02,.01],  // concentrated, skewed right
+    pts:  [{x:.10,y:.12},{x:.22,y:.24},{x:.35,y:.38},{x:.50,y:.52},{x:.63,y:.65},{x:.78,y:.80}],
+    tpts: [{x:.20,y:.22},{x:.55,y:.58},{x:.75,y:.78}],   // linear trend, 3 test pts
+    qpts: [{x:.20},{x:.55},{x:.75}],
+    qppd: [
+      [.01,.02,.06,.16,.30,.28,.18,.10,.05,.02,.01,.00],
+      [.00,.01,.04,.10,.22,.30,.26,.16,.08,.03,.01,.00],
+      [.00,.01,.02,.07,.16,.26,.28,.18,.10,.04,.02,.00],
+    ],
+    trueppd: [.02,.04,.06,.12,.22,.30,.24,.16,.09,.04,.02,.01],
   },
   {
     label: 'noisy / high variance',
     color: '#e8a623',
-    pts: [{x:.12,y:.72},{x:.3,y:.2},{x:.5,y:.6},{x:.65,y:.15},{x:.78,y:.8},{x:.9,y:.45}],
-    ppd: [.07,.09,.10,.10,.11,.12,.11,.10,.10,.09,.07,.04],  // nearly uniform — high uncertainty
+    pts:  [{x:.08,y:.70},{x:.25,y:.18},{x:.42,y:.58},{x:.60,y:.12},{x:.75,y:.82},{x:.90,y:.42}],
+    tpts: [{x:.18,y:.55},{x:.50,y:.45},{x:.82,y:.60}],   // scattered, no clear trend
+    qpts: [{x:.18},{x:.50},{x:.82}],
+    qppd: [
+      [.07,.08,.09,.10,.11,.11,.10,.10,.09,.08,.07,.05],
+      [.06,.08,.10,.10,.11,.12,.11,.10,.09,.08,.07,.05],
+      [.07,.09,.10,.10,.11,.11,.10,.09,.09,.08,.06,.05],
+    ],
+    trueppd: [.07,.09,.10,.10,.11,.12,.11,.10,.10,.09,.07,.04],
   },
   {
     label: 'nonlinear / U-shaped',
     color: '#2ec4b6',
-    pts: [{x:.1,y:.75},{x:.25,y:.4},{x:.4,y:.18},{x:.55,y:.15},{x:.7,y:.38},{x:.85,y:.72}],
-    ppd: [.02,.04,.09,.14,.20,.24,.17,.09,.05,.04,.03,.02],
+    pts:  [{x:.08,y:.78},{x:.22,y:.42},{x:.38,y:.16},{x:.52,y:.14},{x:.68,y:.40},{x:.84,y:.74}],
+    tpts: [{x:.15,y:.62},{x:.50,y:.16},{x:.82,y:.68}],   // U-shape sampled
+    qpts: [{x:.15},{x:.50},{x:.82}],
+    qppd: [
+      [.02,.04,.08,.14,.20,.22,.18,.12,.07,.04,.02,.01],
+      [.04,.07,.10,.13,.15,.16,.14,.10,.08,.06,.04,.03],
+      [.01,.03,.06,.12,.18,.22,.20,.14,.08,.04,.02,.01],
+    ],
+    trueppd: [.02,.04,.09,.14,.20,.24,.17,.09,.05,.04,.03,.02],
   },
   {
     label: 'sparse / few examples',
     color: '#5ecb8a',
-    pts: [{x:.3,y:.4},{x:.65,y:.55}],
-    ppd: [.05,.07,.09,.11,.13,.14,.13,.11,.09,.07,.05,.04],  // wide, uncertain
-  },
-  {
-    label: 'tight cluster',
-    color: '#e8604c',
-    pts: [{x:.48,y:.52},{x:.5,y:.48},{x:.52,y:.5},{x:.49,y:.51},{x:.51,y:.49}],
-    ppd: [.01,.02,.04,.10,.24,.36,.28,.14,.06,.02,.01,.00],  // very peaked
+    pts:  [{x:.28,y:.38},{x:.62,y:.54}],
+    tpts: [{x:.15,y:.35},{x:.50,y:.46},{x:.80,y:.58}],   // sparse — test pts spread out
+    qpts: [{x:.15},{x:.50},{x:.80}],
+    qppd: [
+      [.06,.07,.08,.09,.10,.11,.10,.09,.09,.08,.07,.06],
+      [.05,.07,.08,.10,.11,.12,.11,.10,.09,.08,.07,.05],
+      [.06,.07,.08,.09,.10,.11,.10,.10,.09,.08,.07,.06],
+    ],
+    trueppd: [.05,.07,.09,.11,.13,.14,.13,.11,.09,.07,.05,.04],
   },
 ];
 
-// Inference-time dataset (arrives after training)
+// Inference-time dataset
 const INFER_DATASET = {
   label: 'new unseen dataset',
-  color: '#ffffff',
-  pts: [{x:.2,y:.3},{x:.35,y:.48},{x:.5,y:.62},{x:.65,y:.74},{x:.8,y:.88}],
-  ppd: [.01,.03,.07,.15,.25,.28,.22,.13,.07,.03,.01,.00],
+  color: '#b8b0d8',
+  pts:  [{x:.18,y:.28},{x:.32,y:.44},{x:.48,y:.60},{x:.63,y:.72},{x:.78,y:.86}],
+  tpts: [{x:.12,y:.18},{x:.45,y:.54},{x:.72,y:.76}],
+  qpts: [{x:.12},{x:.45},{x:.72}],
+  qppd: [
+    [.02,.04,.08,.16,.26,.28,.20,.12,.06,.03,.01,.00],
+    [.01,.02,.05,.12,.22,.30,.26,.16,.08,.04,.02,.00],
+    [.00,.01,.03,.08,.18,.28,.28,.18,.10,.05,.02,.00],
+  ],
+  trueppd: [.01,.03,.07,.15,.25,.28,.22,.13,.07,.03,.01,.00],
 };
+
+// ── Procedural scatter generator ─────────────────────────────
+// Returns 6 {x,y} train points or 3 {x,y} test points of the given type.
+// seed is 0-3 for the 4 instances per type.
+function genPts(type, seed, isTest) {
+  const n = isTest ? 3 : 6;
+  const pts = [];
+  // Simple deterministic PRNG based on seed + index
+  function rnd(i) {
+    const v = Math.sin(seed * 127.1 + i * 311.7) * 43758.5453;
+    return v - Math.floor(v);
+  }
+  for (let i = 0; i < n; i++) {
+    const xBase = (i + 0.5 + rnd(i*2)*0.3) / (n);
+    const noise = (rnd(i*2+1) - 0.5) * 0.12;
+    let y;
+    if (type === 0) {        // linear
+      y = xBase * 0.75 + 0.1 + noise;
+    } else if (type === 1) { // noisy
+      y = rnd(i*3) * 0.85 + 0.07;
+    } else if (type === 2) { // U-shaped
+      const cx = xBase - 0.5;
+      y = cx*cx*2.8 + 0.08 + noise;
+    } else {                 // sparse — only 2 train pts but same logic
+      y = xBase * 0.3 + 0.3 + noise;
+    }
+    pts.push({ x: Math.min(0.95, Math.max(0.05, xBase)), y: Math.min(0.95, Math.max(0.05, y)) });
+  }
+  return pts;
+}
+
+// ── Mini PPD shapes: 12 bars, 4 groups of 3, one per dataset colour ──
+// MINI_PPDS[tp] gives 12-bar array for test point tp (0,1,2).
+// Group tp has the peak; other groups are low. Each group = 3 adjacent bars.
+// DS colours map: group0=ds0(purple), group1=ds1(amber), group2=ds2(teal), group3=ds3(green)
+const MINI_PPDS = [
+  // test point 0 → mode in group 0 (bars 0-2, purple)
+  [.05,.30,.18, .04,.03,.03, .07,.06,.06, .05,.05,.05],
+  // test point 1 → mode in group 1 (bars 3-5, amber)
+  [.04,.04,.04, .18,.32,.16, .05,.05,.05, .04,.04,.04],
+  // test point 2 → mode in group 2 (bars 6-8, teal)
+  [.04,.04,.04, .04,.04,.04, .16,.30,.18, .05,.05,.05],
+];
 
 function learnReset() {
   clearTimeout(learnTimer);
@@ -2102,25 +2180,24 @@ function learnAnimate() {
   learnDraw(learnT);
   learnT++;
   // Full loop: 0-299 = training (5 datasets × 60 frames each), 300-499 = inference
-  if (learnT >= 500) learnT = 0;
+  if (learnT >= 600) learnT = 0;
   // Run at ~12 fps (80ms per frame) so the animation is readable
   learnRaf = setTimeout(learnAnimate, 80);
 }
 
 // Step boundaries: ds1..ds5 (training) then inference, then loop
 // Each training dataset occupies 60 frames; inference occupies frames 300-499
-// const LEARN_STEPS = [0, 60, 120, 180, 240, 300];
+const LEARN_STEPS = [0, 100, 200, 300, 400, 500];
 function learnStep() {
-  learnPlay();
-  // learnRunning = false;
-  // clearTimeout(learnTimer);
-  // clearTimeout(learnRaf);
-  // document.getElementById('learn-play-btn').textContent = '▶ Play';
-  // learnEnsureCanvas();
-  // // Jump to next boundary strictly after current t, or wrap back to 0
-  // const next = LEARN_STEPS.find(s => s > learnT);
-  // learnT = next !== undefined ? next : 0;
-  // learnDraw(learnT);
+  learnRunning = false;
+  clearTimeout(learnTimer);
+  clearTimeout(learnRaf);
+  document.getElementById('learn-play-btn').textContent = '▶ Play';
+  learnEnsureCanvas();
+  // Jump to next boundary strictly after current t, or wrap back to 0
+  const next = LEARN_STEPS.find(s => s > learnT);
+  learnT = next !== undefined ? next : 0;
+  learnDraw(learnT);
 }
 
 function lLabel(x, y, str, size, color, align, baseline) {
@@ -2142,12 +2219,10 @@ function lSans(x, y, str, size, color, align, weight) {
 function lDrawScatter(pts, col, bx, by, bw, bh, alpha) {
   lCtx.save();
   lCtx.globalAlpha = alpha || 1;
-  // Background
-  lCtx.fillStyle = 'rgba(20,20,32,0.7)';
-  lCtx.beginPath(); lCtx.roundRect ? lCtx.roundRect(bx,by,bw,bh,4) : lCtx.rect(bx,by,bw,bh); lCtx.fill();
-  lCtx.strokeStyle = `${col}55`; lCtx.lineWidth = 1;
-  lCtx.beginPath(); lCtx.roundRect ? lCtx.roundRect(bx,by,bw,bh,4) : lCtx.rect(bx,by,bw,bh); lCtx.stroke();
-  // Points
+  lCtx.fillStyle = 'rgba(18,18,32,0.75)';
+  lCtx.beginPath(); lCtx.roundRect ? lCtx.roundRect(bx,by,bw,bh,3) : lCtx.rect(bx,by,bw,bh); lCtx.fill();
+  lCtx.strokeStyle = `${col}99`; lCtx.lineWidth = 1;
+  lCtx.beginPath(); lCtx.roundRect ? lCtx.roundRect(bx,by,bw,bh,3) : lCtx.rect(bx,by,bw,bh); lCtx.stroke();
   pts.forEach(p => {
     lCtx.beginPath();
     lCtx.arc(bx + p.x*bw, by + (1-p.y)*bh, 2.5, 0, Math.PI*2);
@@ -2225,89 +2300,267 @@ function learnDraw(t) {
   if (!learnCanvas || !lCtx) return;
   const W = learnW || learnCanvas.offsetWidth, H = 360;
   lCtx.clearRect(0, 0, W, H);
-
-  // Background
   lCtx.fillStyle = 'rgba(14,14,20,1)';
   lCtx.fillRect(0, 0, W, H);
 
-  const isTraining = t < 300;
-  const isInference = t >= 300;
-  const trainT = t;           // 0..299
-  const inferT = t - 300;     // 0..199
+  const isTraining = t < 400;
+  const inferT = t - 400;
 
-  // ── Layout constants relative to W ──────────────────────────────
-  const wCX  = W * 0.55;   // weights box centre-x (was 0.6, tighter)
-  const ppdX = W - 130;    // PPD box left edge for inference
+  // Layout constants set per-phase below
 
-// ── TRAINING PHASE ─────────────────────────────────────────────
-if (isTraining) {
-    const dsIdx = Math.floor(trainT / 60) % LEARN_DATASETS.length;
-    const dsProgress = (trainT % 60) / 60;
-    const ds = LEARN_DATASETS[dsIdx];
+  // ── TRAINING PHASE ───────────────────────────────────────────────
+  if (isTraining) {
+    const dsIdx      = Math.floor(t / 100) % LEARN_DATASETS.length;
+    const dsProgress = (t % 100) / 100;
+    const ds         = LEARN_DATASETS[dsIdx];
+    const trainFrac  = t / 399;
+    const ep         = Math.floor(t % 100);  // frame within current episode, 0-99
+    const activeQ    = 1;  // middle test point drives the right-side PPD
 
-    lSans(wCX, 18, 'Training phase', 12, 'rgba(200,190,255,0.55)', 'center', '500');
-    lLabel(wCX, H-12, `datasets seen: ~${Math.floor(trainT/300*130)}M / 130M`, 9, 'rgba(140,130,200,0.45)', 'center');
+    // ── Layout constants ──────────────────────────────────────────
+    const COL_W    = 104;   // left column width
+    const S_H      = 28;    // scatter height
+    const S_GAP    = 5;     // gap between scatters
+    const BLOCK_GAP = 8;    // gap between train block & test block
+    const wCX      = W * 0.44;
+    const rightX   = W * 0.70;
+    const rightW   = W - rightX - 8;
 
+    // Y positions
+    const trainY0 = 26;
+    const testY0  = trainY0 + 4*(S_H+S_GAP) + BLOCK_GAP;
+    const miniY   = testY0  + 4*(S_H+S_GAP) + 4;
+
+    // Title & counter
+    lSans(W/2, 14, 'Training phase', 12, 'rgba(200,190,255,0.55)', 'center', '500');
+    lLabel(W/2, H-8, `datasets seen: ~${Math.floor(t/400*130)}M / 130M`, 9, 'rgba(140,130,200,0.40)', 'center');
+
+    // ── Weights box (pulsing) ──
     const pulse = Math.sin(dsProgress * Math.PI * 2) * 0.5 + 0.5;
     const wb = lDrawWeights(W, H, pulse * 0.4, wCX);
 
-    const sW = 92, sH = 66;
-    const pW = 92, pH = 52;
-    const slideOffset = (1 - Math.min(1, dsProgress * 2.5)) * 40;
-    const cardCX = 70 - slideOffset;
-    const sX = cardCX - sW / 2;           // ← was missing
-    const sY = H / 2 - sH / 2 - 60;
-    const dsAlpha = Math.min(1, dsProgress * 4);   // ← was missing
+    // ── Left column: 4 train scatters (4 instances of current type) ──
+    LEARN_DATASETS.forEach((d, di) => {
+      const sy = trainY0 + di*(S_H+S_GAP);
+      const isCurrent = di === dsIdx;
+      const alpha = isCurrent ? 1.0 : 0.35;
+      const trainPts = genPts(dsIdx, di, false);
+      lDrawScatter(trainPts, INST_COLORS[di], 8, sy, COL_W, S_H, alpha);
+      lLabel(8 + COL_W + 3, sy + S_H/2, LEARN_DATASETS[dsIdx].label, 6,
+             `${INST_COLORS[di]}${isCurrent?'cc':'66'}`, 'left');
+    });
+    lSans(8 + COL_W/2, trainY0 - 8, '4 train instances', 7, `${ds.color}88`, 'center');
 
-    lDrawScatter(ds.pts, ds.color, sX, sY, sW, sH, dsAlpha);
-    lSans(cardCX, sY - 12, ds.label, 9, `${ds.color}cc`, 'center');
-    lSans(cardCX, sY + sH + 10, 'D ~ p(D)', 9, 'rgba(140,130,200,0.55)', 'center');
+    // ── Left column: 4 test scatters (4 instances of current type) ──
+    LEARN_DATASETS.forEach((d, di) => {
+      const sy = testY0 + di*(S_H+S_GAP);
+      const isCurrent = di === dsIdx;
+      const alpha = isCurrent ? 1.0 : 0.35;
+      const testPts = genPts(dsIdx, di + 10, true);
 
-    const arrowProgress = Math.min(1, (dsProgress - 0.15) / 0.4);
-    if (arrowProgress > 0) {
-      const ax1 = sX + sW + 4, ay1 = sY + sH / 2;
-      const ax2 = wb.bx - 4, ay2 = wb.cy;
-      const ax = ax1 + (ax2 - ax1) * arrowProgress;
-      const ay = ay1 + (ay2 - ay1) * arrowProgress;
+      lCtx.save(); lCtx.globalAlpha = alpha;
+      lCtx.fillStyle = 'rgba(18,18,32,0.75)';
+      lCtx.beginPath(); if(lCtx.roundRect) lCtx.roundRect(8,sy,COL_W,S_H,3); else lCtx.rect(8,sy,COL_W,S_H); lCtx.fill();
+      lCtx.strokeStyle = INST_COLORS[di]+'99'; lCtx.lineWidth=1;
+      lCtx.beginPath(); if(lCtx.roundRect) lCtx.roundRect(8,sy,COL_W,S_H,3); else lCtx.rect(8,sy,COL_W,S_H); lCtx.stroke();
+      testPts.forEach((p, pi) => {
+        const px = 8 + p.x*COL_W, py = sy + (1-p.y)*S_H;
+        lCtx.beginPath(); lCtx.arc(px, py, pi===activeQ ? 4 : 2.5, 0, Math.PI*2);
+        lCtx.fillStyle = TC[pi]; lCtx.fill();
+        if (pi===activeQ) {
+          lCtx.strokeStyle = TC[pi]+'88'; lCtx.lineWidth=1;
+          lCtx.beginPath(); lCtx.arc(px, py, 7, 0, Math.PI*2); lCtx.stroke();
+        }
+      });
+      lCtx.restore();
+    });
+    lSans(8 + COL_W/2, testY0 - 8, '4 test instances', 7, `${ds.color}88`, 'center');
 
-      lCtx.strokeStyle = `${ds.color}88`;
-      lCtx.lineWidth = 1.2;
-      lCtx.setLineDash([4, 3]);
-      lCtx.beginPath();
-      lCtx.moveTo(ax1, ay1);
-      lCtx.lineTo(ax, ay);
-      lCtx.stroke();
+    // ── Mini PPDs: 3 histograms (one per test point), 12 bars each ──
+    // Bars split into 4 colour-coded groups of 3 (one group per dataset type).
+    // Mode falls in group = test point index, so each test point peaks in a
+    // different dataset-colour group, conveying which dataset type best explains it.
+    const N_TP = 3;
+    const MINI_PPD_W = 28;
+    const MINI_PPD_H = 22;
+    const MINI_PPD_GAP = 8;
+    const miniRowW = N_TP * MINI_PPD_W + (N_TP-1) * MINI_PPD_GAP;
+    const miniX0 = 8 + (COL_W - miniRowW) / 2;
+    const miniAlpha = Math.min(1, Math.max(0, (ep - 3) / 15.0));
+    const DS_COLORS = LEARN_DATASETS.map(d => d.color);
+
+    for (let tp = 0; tp < N_TP; tp++) {
+      const mx = miniX0 + tp * (MINI_PPD_W + MINI_PPD_GAP);
+      const my = miniY;
+      const ppd = MINI_PPDS[tp];
+      const maxP = Math.max(...ppd);
+
+      lCtx.save(); lCtx.globalAlpha = miniAlpha;
+      lCtx.fillStyle = 'rgba(16,16,28,0.9)';
+      lCtx.beginPath(); if(lCtx.roundRect) lCtx.roundRect(mx,my,MINI_PPD_W,MINI_PPD_H,2); else lCtx.rect(mx,my,MINI_PPD_W,MINI_PPD_H); lCtx.fill();
+      lCtx.strokeStyle = TC[tp]+'99'; lCtx.lineWidth=0.8;
+      lCtx.beginPath(); if(lCtx.roundRect) lCtx.roundRect(mx,my,MINI_PPD_W,MINI_PPD_H,2); else lCtx.rect(mx,my,MINI_PPD_W,MINI_PPD_H); lCtx.stroke();
+      const bW = MINI_PPD_W / 12;
+      for (let bi = 0; bi < 12; bi++) {
+        const group = Math.floor(bi / 3);
+        const bH = (ppd[bi] / maxP) * (MINI_PPD_H - 3);
+        lCtx.fillStyle = DS_COLORS[group] + 'dd';
+        lCtx.fillRect(mx + bi*bW + 0.3, my + MINI_PPD_H - bH - 1.5, bW - 0.6, bH);
+      }
+      // colour swatch below = test point colour
+      lCtx.fillStyle = TC[tp];
+      lCtx.fillRect(mx + MINI_PPD_W/2 - 3, my + MINI_PPD_H + 3, 6, 3);
+      lCtx.restore();
+    }
+    // Dataset colour legend under mini PPDs
+    if (miniAlpha > 0.5) {
+      DS_COLORS.forEach((col, gi) => {
+        const lx = miniX0 + gi * (miniRowW / 4);
+        lCtx.save(); lCtx.globalAlpha = miniAlpha * 0.6;
+        lCtx.fillStyle = col+'cc';
+        lCtx.fillRect(lx, miniY + MINI_PPD_H + 9, 6, 4);
+        lCtx.restore();
+        lCtx.save(); lCtx.globalAlpha = miniAlpha * 0.45;
+        lLabel(lx + 8, miniY + MINI_PPD_H + 11, LEARN_DATASETS[gi].label.split('/')[0].trim(), 5, col+'bb', 'left');
+        lCtx.restore();
+      });
+    }
+
+    // ── Arrows: all 4 train + 4 test scatter instances → weights ──
+    // Use absolute frame numbers (ep = frame within episode, 0-99).
+    // Each of the 36 slots gets its own start frame, spaced 1.5 frames apart.
+    // Arrow travel takes 12 frames per dot. All 36 dots done by frame ~70.
+    const TOTAL_SLOTS = 4*6 + 4*3;    // 36
+    const ARR_START   = 5;            // first arrow starts at frame 5
+    const ARR_SPACING = 1.5;          // frames between successive arrow launches
+    const ARR_TRAVEL  = 12;           // frames for a dot to reach the weights box
+
+    let slot = 0;
+
+    // Train instances
+    LEARN_DATASETS.forEach((d, di) => {
+      const sy = trainY0 + di*(S_H+S_GAP);
+      const instPts = genPts(dsIdx, di, false);
+      instPts.forEach((p, pi) => {
+        const launchFrame = ARR_START + slot * ARR_SPACING;
+        const t_ = Math.min(1, Math.max(0, (ep - launchFrame) / ARR_TRAVEL));
+        slot++;
+        if (t_ <= 0) return;
+        const px = 8 + p.x*COL_W, py = sy + (1-p.y)*S_H;
+        const ex = px + (wb.bx - px)*t_, ey = py + (wb.by+wb.bh/2-py)*t_;
+        lCtx.strokeStyle = INST_COLORS[di]+'66'; lCtx.lineWidth=0.8;
+        lCtx.setLineDash([3,3]);
+        lCtx.beginPath(); lCtx.moveTo(px,py); lCtx.lineTo(ex,ey); lCtx.stroke();
+        lCtx.setLineDash([]);
+        if (t_ < 1) {
+          lCtx.beginPath(); lCtx.arc(ex,ey,2,0,Math.PI*2);
+          lCtx.fillStyle=INST_COLORS[di]; lCtx.fill();
+        }
+      });
+    });
+
+    // Test instances
+    LEARN_DATASETS.forEach((d, di) => {
+      const sy = testY0 + di*(S_H+S_GAP);
+      const instPts = genPts(dsIdx, di + 10, true);
+      instPts.forEach((p, pi) => {
+        const launchFrame = ARR_START + slot * ARR_SPACING;
+        const t_ = Math.min(1, Math.max(0, (ep - launchFrame) / ARR_TRAVEL));
+        slot++;
+        if (t_ <= 0) return;
+        const px = 8 + p.x*COL_W, py = sy + (1-p.y)*S_H;
+        const ex = px + (wb.bx - px)*t_, ey = py + (wb.by+wb.bh/2-py)*t_;
+        lCtx.strokeStyle = INST_COLORS[di]+'55'; lCtx.lineWidth=0.7;
+        lCtx.setLineDash([2,3]);
+        lCtx.beginPath(); lCtx.moveTo(px,py); lCtx.lineTo(ex,ey); lCtx.stroke();
+        lCtx.setLineDash([]);
+        if (t_ < 1) {
+          lCtx.beginPath(); lCtx.arc(ex,ey,1.8,0,Math.PI*2);
+          lCtx.fillStyle=INST_COLORS[di]; lCtx.fill();
+        }
+      });
+    });
+
+    // Last arrow launch frame: ARR_START + (TOTAL_SLOTS-1)*ARR_SPACING = 5 + 35*1.5 = 57.5
+    // Last arrow completes at frame: 57.5 + ARR_TRAVEL = ~70
+    // Right column appears after frame 72.
+
+    // ── Right column: delta fn (top) + model PPD (bottom) ──────
+    const PPD_START = 72;   // frame within episode when PPD begins fading in
+    const ppdEmP = Math.min(1, Math.max(0, (ep - PPD_START) / 20.0));
+    const rH_ppd = 58;
+    const rH_delta = 34;
+    const rY_delta = H/2 - rH_delta - rH_ppd/2 - 12;
+    const rY_ppd   = rY_delta + rH_delta + 14;
+    const activeCol = TC[activeQ];
+
+    if (ppdEmP > 0) {
+      // animated arrow: weights → right PPD
+      const arrStart = {x:wb.bx+wb.bw, y:wb.cy};
+      const arrEnd   = {x:rightX,      y:rY_ppd+rH_ppd/2};
+      const aax = arrStart.x+(arrEnd.x-arrStart.x)*Math.min(1,ppdEmP*1.8);
+      const aay = arrStart.y+(arrEnd.y-arrStart.y)*Math.min(1,ppdEmP*1.8);
+      lCtx.strokeStyle=`rgba(124,106,245,${ppdEmP*0.55})`; lCtx.lineWidth=1.1;
+      lCtx.setLineDash([4,3]);
+      lCtx.beginPath(); lCtx.moveTo(arrStart.x,arrStart.y); lCtx.lineTo(aax,aay); lCtx.stroke();
       lCtx.setLineDash([]);
+      if (ppdEmP < 0.65) {
+        lCtx.beginPath(); lCtx.arc(aax,aay,2.5,0,Math.PI*2);
+        lCtx.fillStyle='rgba(124,106,245,0.7)'; lCtx.fill();
+      }
 
-      lCtx.beginPath();
-      lCtx.arc(ax, ay, 3.5, 0, Math.PI * 2);
-      lCtx.fillStyle = ds.color;
-      lCtx.fill();
+      // model PPD — starts flat, converges toward true
+      const flat = Array(12).fill(1/12);
+      const true_ = ds.qppd[activeQ];
+      const modelPPD = flat.map((f,i)=>f+(true_[i]-f)*Math.pow(trainFrac,0.7));
+      const s = modelPPD.reduce((a,b)=>a+b,0);
+      const normPPD = modelPPD.map(v=>v/s);
+
+      lDrawPPD(normPPD, activeCol, rightX, rY_ppd, rightW, rH_ppd, ppdEmP, true);
+      lSans(rightX+rightW/2, rY_ppd-11, 'q_θ(y | x*, D)', 8, `rgba(220,215,240,${ppdEmP*0.8})`, 'center');
+      lSans(rightX+rightW/2, rY_ppd+rH_ppd+9, 'model output (converging)', 7, `rgba(160,150,200,${ppdEmP*0.55})`, 'center');
+
+      // delta function — spike at argmax of normPPD
+      const modeIdx = normPPD.indexOf(Math.max(...normPPD));
+      const N = normPPD.length;
+      lCtx.save(); lCtx.globalAlpha = ppdEmP;
+      lCtx.fillStyle='rgba(18,18,32,0.8)';
+      lCtx.beginPath(); if(lCtx.roundRect) lCtx.roundRect(rightX,rY_delta,rightW,rH_delta,3); else lCtx.rect(rightX,rY_delta,rightW,rH_delta); lCtx.fill();
+      lCtx.strokeStyle=activeCol+'66'; lCtx.lineWidth=0.7;
+      lCtx.beginPath(); if(lCtx.roundRect) lCtx.roundRect(rightX,rY_delta,rightW,rH_delta,3); else lCtx.rect(rightX,rY_delta,rightW,rH_delta); lCtx.stroke();
+      const bW = rightW/N;
+      for (let bi=0; bi<N; bi++) {
+        const iMode = bi===modeIdx;
+        const bH = iMode ? rH_delta-4 : 2;
+        lCtx.fillStyle = iMode ? activeCol+'ee' : activeCol+'22';
+        lCtx.fillRect(rightX+bi*bW+0.5, rY_delta+rH_delta-bH-2, bW-1, bH);
+      }
+      lCtx.restore();
+      lSans(rightX+rightW/2, rY_delta-9, 'ŷ = argmax  (x*)', 8, `${activeCol}${Math.floor(ppdEmP*220).toString(16).padStart(2,'0')}`, 'center');
+      // x* label on active test point
+      const activeTestSy = testY0 + dsIdx*(S_H+S_GAP);
+      const atp = ds.tpts[activeQ];
+      const atpx = 8 + atp.x*COL_W, atpy = activeTestSy + (1-atp.y)*S_H;
+      lCtx.save(); lCtx.globalAlpha=ppdEmP*0.8;
+      lSans(atpx, atpy-10, 'x*', 7, activeCol, 'center');
+      lCtx.restore();
     }
 
-    const ppdAlpha = Math.min(1, Math.max(0, (dsProgress - 0.3) / 0.3));
-    const pX = cardCX - pW / 2;
-    const pY = sY + sH + 48;
-
-    lDrawPPD(ds.ppd, ds.color, pX, pY, pW, pH, ppdAlpha, true);
-    if (ppdAlpha > 0.5) {
-      lSans(cardCX, pY - 10, 'true PPD', 8, `${ds.color}99`, 'center');
-      lSans(cardCX, pY + pH + 8, 'p(y|x,D)', 8, 'rgba(140,130,200,0.45)', 'center');
-    }
-
-    const lossAlpha = Math.min(1, Math.max(0, (dsProgress - 0.5) / 0.25));
+    // ── NLL ──
+    const lossAlpha = Math.min(1, Math.max(0,(ep - 74) / 10.0));
     if (lossAlpha > 0) {
-      const lossVal = (2.8 - (trainT/300)*1.6 + (Math.random()-0.5)*0.1).toFixed(3);
-      const lx = wCX, ly = wb.by - 22;
-      lSans(lx, ly, `NLL = ${lossVal}`, 10, `rgba(94,203,138,${lossAlpha*0.9})`, 'center');
-      lSans(lx, ly + 14, '↓ gradient step', 8, `rgba(94,203,138,${lossAlpha*0.6})`, 'center');
+      const lossVal = (2.4-trainFrac*1.5+(Math.random()-0.5)*0.08).toFixed(3);
+      lSans(wCX, wb.by-18, `NLL = ${lossVal}`, 10, `rgba(94,203,138,${lossAlpha*0.9})`, 'center');
+      lSans(wCX, wb.by-5,  '↓ gradient step', 8, `rgba(94,203,138,${lossAlpha*0.6})`, 'center');
     }
 
     if (t % 60 === 0) {
       document.getElementById('learn-caption').innerHTML =
-        `<strong style="color:var(--accent)">Training — dataset ${dsIdx+1}/${LEARN_DATASETS.length} (cycle).</strong> ` +
-        `The model sees "<em>${ds.label}</em>" and minimises NLL of the masked label. ` +
-        `By Insight 1 of the PFN paper, this equals KL(true PPD ‖ model output). The weights learn a general mapping: <em>dataset structure → posterior shape</em>.`;
+        `<strong style="color:var(--accent)">Training — dataset ${dsIdx+1}/${LEARN_DATASETS.length}.</strong> ` +
+        `Four train/test pairs are shown — the active pair (bright) is "<em>${ds.label}</em>". ` +
+        `Training points flow into the weights; the model outputs <code>q_θ(y|x*,D)</code> for the highlighted test point (circled). ` +
+        `Mini histograms at the bottom show predicted distributions for all 12 test points, coloured by test point. ` +
+        `The spike above the PPD shows the argmax prediction. As training progresses, the model output sharpens toward the true posterior.`;
     }
   }
 
