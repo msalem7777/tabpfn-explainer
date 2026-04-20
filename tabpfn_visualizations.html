@@ -2109,17 +2109,18 @@ function learnAnimate() {
 
 // Step boundaries: ds1..ds5 (training) then inference, then loop
 // Each training dataset occupies 60 frames; inference occupies frames 300-499
-const LEARN_STEPS = [0, 60, 120, 180, 240, 300];
+// const LEARN_STEPS = [0, 60, 120, 180, 240, 300];
 function learnStep() {
-  learnRunning = false;
-  clearTimeout(learnTimer);
-  clearTimeout(learnRaf);
-  document.getElementById('learn-play-btn').textContent = '▶ Play';
-  learnEnsureCanvas();
-  // Jump to next boundary strictly after current t, or wrap back to 0
-  const next = LEARN_STEPS.find(s => s > learnT);
-  learnT = next !== undefined ? next : 0;
-  learnDraw(learnT);
+  learnPlay();
+  // learnRunning = false;
+  // clearTimeout(learnTimer);
+  // clearTimeout(learnRaf);
+  // document.getElementById('learn-play-btn').textContent = '▶ Play';
+  // learnEnsureCanvas();
+  // // Jump to next boundary strictly after current t, or wrap back to 0
+  // const next = LEARN_STEPS.find(s => s > learnT);
+  // learnT = next !== undefined ? next : 0;
+  // learnDraw(learnT);
 }
 
 function lLabel(x, y, str, size, color, align, baseline) {
@@ -2249,10 +2250,10 @@ function learnDraw(t) {
 
     // Incoming dataset (left side)
     const dsAlpha = Math.min(1, dsProgress * 4);
-    const slideX = Math.max(0, (1 - dsProgress * 2)) * (-80);
+    const slideX = (1 - Math.min(1, dsProgress * 2.5)) * 50;   // 0..50px offset, fully settled by 40% of cycle
+    const sX = 20 - slideX;   // starts at x=-30, settles at x=20
     const sW = 92, sH = 66;
-    const sY = H/2 - sH/2 - 55;   // move top card slightly higher
-    const sX = Math.max(20, 20 + slideX);
+    const sY = H/2 - sH/2 - 40;   // move top card slightly higher
 
     lDrawScatter(ds.pts, ds.color, sX, sY, sW, sH, dsAlpha);
     lSans(sX + sW / 2, sY - 12, ds.label, 9, `${ds.color}cc`, 'center');
@@ -2284,7 +2285,7 @@ function learnDraw(t) {
     // PPD for this dataset (below scatter)
     const ppdAlpha = Math.min(1, Math.max(0, (dsProgress - 0.3) / 0.3));
     const pW = 80, pH = 48;
-    const pX = 16 + slideX, pY = sY + sH + 26;
+    const pX = sX - 4, pY = sY + sH + 26;
     
     lDrawPPD(ds.ppd, ds.color, pX, pY, pW, pH, ppdAlpha, true);
     
